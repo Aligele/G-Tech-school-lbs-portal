@@ -466,6 +466,7 @@ export const ownerSchools = () => rpc("owner_schools", { p_token: getToken() });
 export const schoolCreate = (s) => rpc("school_create", {
   p_token: getToken(), p_code: s.code, p_name: s.name, p_location: s.location || null,
   p_admin_user: s.adminUser, p_admin_name: s.adminName, p_admin_password: s.adminPassword,
+  p_stage: s.stage || "basic",
 });
 export const schoolSetActive = (code, active) =>
   rpc("school_set_active", { p_token: getToken(), p_code: code, p_active: active });

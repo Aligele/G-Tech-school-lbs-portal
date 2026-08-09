@@ -86,7 +86,7 @@ const STATUS = {
   late: { label: "Late", ink: "#8A6A00", mark: "L" },
 };
 
-const APP_VERSION = "v45 · a subdomain per school";
+const APP_VERSION = "v46 · senior school and KCSE";
 
 // Keeps the last 400 actions so the school can see who changed what.
 const logAction = (roster, actor, action) => {
@@ -133,6 +133,7 @@ const CBC_LEVELS = {
   lower:  { label: "Lower Primary (Grades 1–3)",  grades: [1, 2, 3] },
   upper:  { label: "Upper Primary (Grades 4–6)",  grades: [4, 5, 6] },
   junior: { label: "Junior School (Grades 7–9)",  grades: [7, 8, 9] },
+  senior: { label: "Senior School (Grades 10–12)", grades: [10, 11, 12] },
 };
 
 // Learning areas per level. Anything not listed here is treated as
@@ -154,6 +155,36 @@ const CBC_LEVEL_SUBJECTS = {
     "Integrated Science", "Social Studies", "Pre-Technical Studies",
     "Agriculture and Nutrition", "Creative Arts and Sports",
     "Religious Education (IRE)",
+  ],
+  // Senior school: the compulsory core every learner takes, plus whatever the
+  // school offers from its pathways. Subjects are added per school rather than
+  // listed here, because no two senior schools offer the same combination.
+  senior: [
+    "English", "Kiswahili", "Mathematics", "Community Service Learning",
+    "Physical Education",
+  ],
+};
+
+// The pathway subjects a senior school might offer. A school turns on the ones
+// it actually teaches; nothing is assumed.
+const SENIOR_PATHWAY_SUBJECTS = {
+  "STEM": [
+    "Biology", "Chemistry", "Physics", "General Science",
+    "Agriculture", "Computer Studies", "Home Science",
+    "Aviation Technology", "Building Construction", "Electricity",
+    "Metal Work", "Power Mechanics", "Wood Work", "Media Technology",
+    "Marine and Fisheries Technology",
+  ],
+  "Social Sciences": [
+    "History and Citizenship", "Geography", "Business Studies",
+    "Christian Religious Education", "Islamic Religious Education",
+    "Hindu Religious Education", "Literature in English",
+    "Fasihi ya Kiswahili", "Arabic", "French", "German", "Mandarin",
+    "Kenyan Sign Language", "Indigenous Language",
+  ],
+  "Arts and Sports Science": [
+    "Sports and Recreation", "Music and Dance", "Theatre and Film",
+    "Fine Art",
   ],
 };
 
@@ -361,6 +392,32 @@ const DEFAULT_WEIGHTS = { cat1: 15, cat2: 15, exam: 70 };
 // KCSE-style grading used by Kenyan senior schools
 // CBC performance levels (Competency Based Curriculum, Kenya).
 // Primary schools report levels 1–4 rather than KCSE letter grades.
+// Which scheme the screen currently being drawn should use. React renders a
+// tree synchronously, so a component sets this once from its own class before
+// drawing anything, and every grade shown beneath it agrees. It defaults to
+// CBC, so a screen that forgets to set it shows primary grading rather than
+// something wrong for both.
+let GRADING_SENIOR = false;
+const useGradingFor = (roster, classId) => {
+  GRADING_SENIOR = isSeniorClass(roster, classId);
+  return GRADING_SENIOR;
+};
+const setGradingSenior = (v) => { GRADING_SENIOR = !!v; };
+
+const activeBand = (score) => (GRADING_SENIOR ? kcseBand(score) : cbcBand(score));
+const gradeOf = (score) => activeBand(score)?.code || "—";
+const gradeLabel = (score) => activeBand(score)?.label || "—";
+const gradeInk = (score) => activeBand(score)?.ink || "#5E6E64";
+// A CBC level number, or the KCSE points value, whichever the class uses.
+const gradeLevel = (score) => GRADING_SENIOR
+  ? (kcseBand(score)?.points ?? null)
+  : (cbcBand(score)?.level ?? null);
+// What to call it in a heading: "Level 3" or "8 points".
+const levelWord = (score) => {
+  if (score === null || score === undefined) return "—";
+  return GRADING_SENIOR ? `${gradeLevel(score)} pts` : `L${gradeLevel(score)}`;
+};
+
 const CBC_BANDS = [
   { min: 76, level: 4, code: "EE", label: "Exceeding Expectation",   ink: "#0B5C2D" },
   { min: 51, level: 3, code: "ME", label: "Meeting Expectation",     ink: "#0E7A3C" },
@@ -371,12 +428,65 @@ const cbcBand = (score) => {
   if (score === null || score === undefined) return null;
   return CBC_BANDS.find((b) => score >= b.min) || CBC_BANDS[CBC_BANDS.length - 1];
 };
-// Short code shown in tables, e.g. "ME"; full wording used on report cards.
-const gradeOf = (score) => cbcBand(score)?.code || "—";
-const gradeLevel = (score) => cbcBand(score)?.level ?? null;
-const gradeLabel = (score) => cbcBand(score)?.label || "—";
-const gradeInk = (score) => cbcBand(score)?.ink || "#5E6E64";
 
+// ---------- KCSE grading, for senior school ----------
+// Grades 10 to 12 are senior school and are still reported the Kenyan way: a
+// letter, a points value, and a mean grade across subjects. Nothing about CBC
+// levels applies there, so the two schemes sit side by side and the class
+// decides which is used.
+const KCSE_BANDS = [
+  { min: 80, code: "A",  points: 12, label: "Excellent",      ink: "#0B5C2D" },
+  { min: 75, code: "A-", points: 11, label: "Excellent",      ink: "#0B5C2D" },
+  { min: 70, code: "B+", points: 10, label: "Very good",      ink: "#0E7A3C" },
+  { min: 65, code: "B",  points:  9, label: "Very good",      ink: "#0E7A3C" },
+  { min: 60, code: "B-", points:  8, label: "Good",           ink: "#0E7A3C" },
+  { min: 55, code: "C+", points:  7, label: "Good",           ink: "#8A6A00" },
+  { min: 50, code: "C",  points:  6, label: "Average",        ink: "#8A6A00" },
+  { min: 45, code: "C-", points:  5, label: "Average",        ink: "#8A6A00" },
+  { min: 40, code: "D+", points:  4, label: "Below average",  ink: "#C0261B" },
+  { min: 35, code: "D",  points:  3, label: "Below average",  ink: "#C0261B" },
+  { min: 30, code: "D-", points:  2, label: "Weak",           ink: "#C0261B" },
+  { min:  0, code: "E",  points:  1, label: "Very weak",      ink: "#C0261B" },
+];
+const kcseBand = (score) => {
+  if (score === null || score === undefined) return null;
+  return KCSE_BANDS.find((b) => score >= b.min) || KCSE_BANDS[KCSE_BANDS.length - 1];
+};
+
+// Which scheme a class is marked under. Grade 10 and above is senior school.
+const gradeNumberOf = (className) => {
+  const m = String(className || "").match(/(\d+)/);
+  return m ? Number(m[1]) : null;
+};
+const isSeniorClass = (roster, classId) => {
+  const c = roster?.classes?.find((x) => x.id === classId);
+  const n = gradeNumberOf(c?.name);
+  return n !== null && n >= 10;
+};
+
+// One set of helpers that answer for whichever scheme applies, so no screen
+// has to know which kind of school it is being shown.
+const bandFor = (score, senior) => (senior ? kcseBand(score) : cbcBand(score));
+const gradeOfIn  = (score, senior) => bandFor(score, senior)?.code  || "—";
+const gradeInkIn = (score, senior) => bandFor(score, senior)?.ink   || "#5E6E64";
+const gradeLabelIn = (score, senior) => bandFor(score, senior)?.label || "—";
+const pointsOf = (score) => kcseBand(score)?.points ?? null;
+
+// The mean grade: total points over subjects, rounded the way KCSE rounds.
+const meanGrade = (scores) => {
+  const pts = (scores || []).map(pointsOf).filter((p) => p !== null);
+  if (!pts.length) return null;
+  const total = pts.reduce((a, b) => a + b, 0);
+  const mean = total / pts.length;
+  // find the letter whose points value the mean rounds to
+  const rounded = Math.round(mean);
+  const band = KCSE_BANDS.find((b) => b.points === Math.max(1, Math.min(12, rounded)));
+  return { total, mean: Math.round(mean * 100) / 100, code: band?.code || "E",
+           ink: band?.ink || "#C0261B", subjects: pts.length };
+};
+
+
+// Short code shown in tables, e.g. "ME"; full wording used on report cards.
 // Older records stored a single number; treat that as the main exam mark.
 const normEntry = (e) => (typeof e === "number" ? { exam: e } : (e || {}));
 
@@ -2637,10 +2747,14 @@ function ClassPicker({ roster, onPick }) {
 // one, this lists whatever the timetable assigns them, plus their own class,
 // and limits each to the learning areas they hold there.
 function TeacherResults({ roster, saveRoster, teacher }) {
+  setGradingSenior(false);   // senior school is marked the KCSE way
   const assignments = teachingAssignments(roster, teacher.id);
   const [picked, setPicked] = useState(assignments.length === 1 ? assignments[0].classId : "");
 
   const current = assignments.find((a) => a.classId === picked);
+  // A teacher may teach both a junior and a senior class; the marks shown must
+  // follow whichever is open.
+  setGradingSenior(isSeniorClass(roster, picked));
 
   if (assignments.length === 0) {
     return (
@@ -3333,6 +3447,7 @@ function Approvals({ roster, saveRoster }) {
 
       <div style={{ display: "grid", gap: 10 }}>
         {pending.map(({ classId, tKey, rec }) => {
+          setGradingSenior(isSeniorClass(roster, classId));   // each class on its own terms
           const studentsIn = roster.students.filter((s) => s.classId === classId);
           const ranked = classPositions(rec.grid || {}, studentsIn, roster.subjects, weights);
           return (
@@ -8356,7 +8471,7 @@ function SecurityPanel({ who }) {
 function SchoolsPanel({ who }) {
   const [rows, setRows] = useState(null);
   const [adding, setAdding] = useState(false);
-  const [f, setF] = useState({ code: "", name: "", location: "",
+  const [f, setF] = useState({ code: "", name: "", location: "", stage: "basic",
                                adminUser: "", adminName: "", adminPassword: "" });
   const [made, setMade] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -8377,7 +8492,8 @@ function SchoolsPanel({ who }) {
       const r = await schoolCreate(f);
       const row = Array.isArray(r) ? r[0] : r;
       setMade({ ...f, code: row?.out_code || f.code });
-      setF({ code: "", name: "", location: "", adminUser: "", adminName: "", adminPassword: "" });
+      setF({ code: "", name: "", location: "", stage: "basic",
+             adminUser: "", adminName: "", adminPassword: "" });
       setAdding(false);
       await load();
     } catch (e) { setErr(String(e.message || e).replace(/^school_create \\d+: /, "")); }
@@ -8459,6 +8575,37 @@ function SchoolsPanel({ who }) {
                 marginTop: -4, marginBottom: 13, lineHeight: 1.5 }}>
             The short code is what staff choose on the sign-in screen. Keep it short and obvious —
             it cannot be changed later.
+          </div>
+
+          {/* Which grades the school teaches. This decides the classes it gets
+              and, just as importantly, how its results are graded. */}
+          <div style={{ fontFamily: FONT.mono, fontSize: 9, letterSpacing: 1.2,
+                color: "#4A5A50", textTransform: "uppercase", marginBottom: 7 }}>What it teaches</div>
+          <div style={{ display: "grid", gap: 6, marginBottom: 14 }}>
+            {[["basic", "Grades 1 to 9", "Primary and junior school · CBC levels (EE, ME, AE, BE)"],
+              ["senior", "Grades 10 to 12", "Senior school · KCSE grading (A to E, points, mean grade)"],
+              ["combined", "Grades 1 to 12", "The whole way through · each class graded its own way"]]
+              .map(([k, label, why]) => {
+              const on = f.stage === k;
+              return (
+                <button key={k} onClick={() => setF({ ...f, stage: k })} className="lift"
+                  style={{ display: "flex", alignItems: "center", gap: 11, textAlign: "left",
+                    padding: "10px 12px", borderRadius: 4, cursor: "pointer",
+                    background: on ? "#E3F5E9" : "#FFFFFF",
+                    border: `1px solid ${on ? "#0E7A3C" : "#DCE6E0"}` }}>
+                  <span style={{ width: 17, height: 17, borderRadius: "50%", flex: "0 0 17px",
+                    border: `1.5px solid ${on ? "#0E7A3C" : "#B9C7BF"}`,
+                    background: on ? "#0E7A3C" : "transparent", color: "#fff",
+                    fontSize: 11, lineHeight: "15px", textAlign: "center" }}>{on ? "✓" : ""}</span>
+                  <span>
+                    <span style={{ fontFamily: FONT.body, fontSize: 13.5, fontWeight: 700,
+                          color: "#0A2E1A" }}>{label}</span>
+                    <div style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#4A5A50",
+                          marginTop: 2 }}>{why}</div>
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           <div style={{ fontFamily: FONT.mono, fontSize: 9, letterSpacing: 1.2,
@@ -9241,6 +9388,7 @@ function IdCardDashboard({ roster }) {
 
 // Small wrapper: lets a teacher choose a term, then print every pupil's card.
 function TeacherReportCards({ roster, classId, teacher }) {
+  setGradingSenior(isSeniorClass(roster, classId));   // senior school is marked the KCSE way
   const [term, setTerm] = useState(DEFAULT_TERM);
   const [printing, setPrinting] = useState(false);
 
@@ -9303,6 +9451,7 @@ function TeacherReportCards({ roster, classId, teacher }) {
 // Each card starts on a new page and carries the pupil's admission number and
 // PIN, so the printed slip doubles as the parent's portal login.
 function BulkReportCards({ roster, classId, term, onBack }) {
+  setGradingSenior(isSeniorClass(roster, classId));   // senior school is marked the KCSE way
   const weights = roster.settings.weights || DEFAULT_WEIGHTS;
   const students = roster.students.filter((s) => s.classId === classId);
   const record = getMarksFor(roster, classId, term);
@@ -9385,10 +9534,13 @@ function BulkReportCards({ roster, classId, term, onBack }) {
                         </td>
                       ))}
                       <td style={{ ...docTd, textAlign: "right", fontFamily: FONT.mono, fontWeight: 700 }}>{fin ?? "—"}</td>
-                      <td style={{ ...docTd, textAlign: "center", fontFamily: FONT.mono, fontWeight: 700 }}>
-                        {fin === null ? "—" : `L${gradeLevel(fin)}`}
+                      <td style={{ ...docTd, textAlign: "center", fontFamily: FONT.mono, fontWeight: 700,
+                            color: gradeInk(fin) }}>
+                        {fin === null ? "—" : gradeOf(fin)}
                       </td>
-                      <td style={{ ...docTd, fontSize: 11 }}>{fin === null ? "—" : gradeLabel(fin)}</td>
+                      <td style={{ ...docTd, textAlign: "center", fontFamily: FONT.mono, fontSize: 11 }}>
+                        {fin === null ? "—" : levelWord(fin)}
+                      </td>
                     </tr>
                   );
                 })}
@@ -9396,10 +9548,24 @@ function BulkReportCards({ roster, classId, term, onBack }) {
             </table>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, margin: "14px 0 18px" }}>
-              {[["POSITION", rank ? `${rank.position} / ${rank.outOf}` : "—"],
-                ["TOTAL", sum.count ? sum.total : "—"],
-                ["MEAN", avg === null ? "—" : `${avg}/100`],
-                ["LEVEL", avg === null ? "—" : `L${gradeLevel(avg)}`]].map(([l, v]) => (
+              {(() => {
+                // In a senior school the two figures that matter are the total
+                // points and the mean grade — a mean out of 100 is not what a
+                // parent or a form teacher reads.
+                const senior = isSeniorClass(roster, student.classId);
+                const mg = senior
+                  ? meanGrade(entries.map(([, raw]) => subjectFinal(normEntry(raw), weights)))
+                  : null;
+                return senior
+                  ? [["POSITION", rank ? `${rank.position} / ${rank.outOf}` : "—"],
+                     ["TOTAL POINTS", mg ? mg.total : "—"],
+                     ["MEAN", avg === null ? "—" : `${avg}/100`],
+                     ["MEAN GRADE", mg ? mg.code : "—"]]
+                  : [["POSITION", rank ? `${rank.position} / ${rank.outOf}` : "—"],
+                     ["TOTAL", sum.count ? sum.total : "—"],
+                     ["MEAN", avg === null ? "—" : `${avg}/100`],
+                     ["LEVEL", avg === null ? "—" : `L${gradeLevel(avg)}`]];
+              })().map(([l, v]) => (
                 <div key={l} style={{ border: "1px solid #DCE6E0", borderRadius: 4, padding: "8px 9px", background: "#F4F8F5", textAlign: "center" }}>
                   <div style={{ fontFamily: FONT.mono, fontSize: 8, color: "#5E6E64", letterSpacing: 0.8 }}>{l}</div>
                   <div style={{ fontSize: 15, fontWeight: "bold", marginTop: 3 }}>{v}</div>
@@ -9409,7 +9575,16 @@ function BulkReportCards({ roster, classId, term, onBack }) {
 
             {avg !== null && (
               <div style={{ marginBottom: 16, fontSize: 13 }}>
-                Overall: <strong>Level {gradeLevel(avg)} — {gradeLabel(avg)}</strong>
+                {isSeniorClass(roster, student.classId) ? (() => {
+                  const mg = meanGrade(entries.map(([, raw]) => subjectFinal(normEntry(raw), weights)));
+                  return mg ? (
+                    <>Overall: <strong style={{ color: mg.ink }}>Mean grade {mg.code}</strong>
+                      {" — "}{mg.total} points from {mg.subjects} subject{mg.subjects === 1 ? "" : "s"}
+                      {" "}(mean {mg.mean})</>
+                  ) : null;
+                })() : (
+                  <>Overall: <strong>Level {gradeLevel(avg)} — {gradeLabel(avg)}</strong></>
+                )}
               </div>
             )}
 
@@ -9486,7 +9661,10 @@ function ClassMarksheetDoc({ roster, classId, term, onBack }) {
 
       <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 14, fontSize: 12 }}>
         <div><strong>Pupils:</strong> {students.length} &nbsp;·&nbsp; <strong>With results:</strong> {ranked.length}</div>
-        <div><strong>Class mean:</strong> {classMean === null ? "—" : `${classMean} (Level ${gradeLevel(classMean)})`}</div>
+        <div><strong>Class mean:</strong> {classMean === null ? "—"
+                : isSeniorClass(roster, classId)
+                  ? `${classMean} (${gradeOf(classMean)})`
+                  : `${classMean} (Level ${gradeLevel(classMean)})`}</div>
         <div><strong>Status:</strong> {status === "approved" ? "Approved" : status === "submitted" ? "Awaiting approval" : "Draft"}</div>
       </div>
 
