@@ -86,7 +86,7 @@ const STATUS = {
   late: { label: "Late", ink: "#8A6A00", mark: "L" },
 };
 
-const APP_VERSION = "v46 · senior school and KCSE";
+const APP_VERSION = "v47 · bring in records";
 
 // Keeps the last 400 actions so the school can see who changed what.
 const logAction = (roster, actor, action) => {
@@ -1617,6 +1617,7 @@ function AdminView({ roster, saveRoster, onExit, syncState, onForceSave, who }) 
     ]},
     { title: "REPORTS", items: [
       { key: "reports", label: "Reports", icon: "reports" },
+      { key: "import", label: "Bring in records", icon: "backup" },
       { key: "year end", label: "End of year", icon: "yearend" },
       { key: "history", label: "History", icon: "reports" },
       { key: "holidaywork", label: "Holiday work", icon: "subjects" },
@@ -2193,6 +2194,8 @@ function AdminView({ roster, saveRoster, onExit, syncState, onForceSave, who }) 
           {tab === "duty" && <DutyRoster roster={roster} saveRoster={saveRoster} />}
 
           {tab === "reports" && <AdminReports roster={roster} />}
+
+          {tab === "import" && <ImportRecords roster={roster} saveRoster={saveRoster} who={who} />}
 
           {tab === "year end" && <YearEnd roster={roster} saveRoster={saveRoster} />}
 
@@ -8727,6 +8730,551 @@ function SchoolLink({ code }) {
                  background: copied ? "#0B5C2D" : "#0E7A3C" }}>
         {copied ? "copied" : "copy link"}
       </button>
+    </div>
+  );
+}
+
+
+// ---------- Bringing records in from a previous system ----------
+// No two systems export the same column names, so nothing is assumed: the
+// file is read, the columns are guessed, and the guesses are shown for
+// correction before a single record is written.
+
+// A CSV parser that copes with what real exports contain — quoted fields,
+// commas inside names, quotes inside quotes, and both kinds of line ending.
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+  const s = String(text || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (s[i + 1] === '"') { field += '"'; i++; }   // an escaped quote
+        else inQuotes = false;
+      } else field += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === "," || c === "\t" || c === ";") { row.push(field); field = ""; }
+    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+    else field += c;
+  }
+  if (field !== "" || row.length) { row.push(field); rows.push(row); }
+  return rows.filter((r) => r.some((x) => String(x).trim() !== ""));
+}
+
+// What each import needs, and what it merely likes to have.
+const IMPORT_KINDS = {
+  pupils: {
+    label: "Pupils",
+    why: "Names, class and guardian. Do this one first — marks and fees hang off the admission number.",
+    fields: [
+      { key: "admNo",       label: "Admission number", required: true,
+        hints: ["adm", "admission", "regno", "reg no", "upi", "student id", "learner", "index"] },
+      { key: "name",        label: "Full name", required: true,
+        hints: ["name", "pupil", "student", "learner name", "fullname"] },
+      { key: "className",   label: "Class", required: true,
+        hints: ["class", "grade", "form", "stream", "level"] },
+      { key: "sex",         label: "Boy or girl", hints: ["sex", "gender"] },
+      { key: "birthCertNo", label: "Birth certificate no", hints: ["birth", "cert", "bc no", "entry no"] },
+      { key: "dob",         label: "Date of birth", hints: ["dob", "date of birth", "born"] },
+      { key: "parentName",  label: "Guardian's name", hints: ["parent", "guardian", "father", "mother", "next of kin"] },
+      { key: "parentPhone", label: "Guardian's phone", hints: ["phone", "mobile", "tel", "contact"] },
+      { key: "parentId",    label: "Guardian's ID", hints: ["id no", "national id", "idno", "parent id"] },
+      { key: "feeDue",      label: "Fee due", hints: ["fee due", "fees", "amount due", "billed"] },
+      { key: "feePaid",     label: "Fee paid", hints: ["paid", "amount paid", "receipted"] },
+    ],
+  },
+  fees: {
+    label: "Fee payments",
+    why: "One row per payment. Each becomes a receipt in the day book.",
+    fields: [
+      { key: "admNo",   label: "Admission number", required: true,
+        hints: ["adm", "admission", "regno", "student id"] },
+      { key: "date",    label: "Date paid", required: true, hints: ["date", "paid on", "receipt date"] },
+      { key: "amount",  label: "Amount", required: true, hints: ["amount", "paid", "sum", "total"] },
+      { key: "receiptNo", label: "Receipt number", hints: ["receipt", "rcpt", "voucher", "ref"] },
+      { key: "method",  label: "How it was paid", hints: ["method", "mode", "payment type", "cash"] },
+      { key: "mpesaCode", label: "M-Pesa code", hints: ["mpesa", "transaction", "code"] },
+    ],
+  },
+  marks: {
+    label: "Exam marks",
+    why: "One row per pupil per subject. Bring last year's finals only unless you truly need more.",
+    fields: [
+      { key: "admNo",   label: "Admission number", required: true,
+        hints: ["adm", "admission", "regno", "student id"] },
+      { key: "subject", label: "Subject", required: true, hints: ["subject", "learning area", "paper"] },
+      { key: "score",   label: "Mark out of 100", required: true, hints: ["mark", "score", "result", "total"] },
+      { key: "term",    label: "Term", hints: ["term", "session", "exam"] },
+      { key: "className", label: "Class", hints: ["class", "grade", "form"] },
+    ],
+  },
+};
+
+// Guess which column is which from the header row. A guess, shown plainly and
+// easy to change — never a silent decision.
+function guessMapping(headers, fields) {
+  const map = {};
+  const used = new Set();
+  const clean = (h) => String(h || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  fields.forEach((f) => {
+    const idx = headers.findIndex((h, i) => {
+      if (used.has(i)) return false;
+      const c = clean(h);
+      if (!c) return false;
+      if (c === clean(f.label)) return true;
+      return f.hints.some((hint) => c === hint || c.includes(hint));
+    });
+    if (idx >= 0) { map[f.key] = idx; used.add(idx); }
+  });
+  return map;
+}
+
+// Dates arrive in every shape. Accept the common ones, refuse the ambiguous.
+function normDate(v) {
+  const s = String(v || "").trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if (m) {
+    let [, a, b, y] = m;
+    if (y.length === 2) y = (Number(y) > 50 ? "19" : "20") + y;
+    // day/month/year is the Kenyan convention; anything above 12 settles it
+    const day = Number(a), mon = Number(b);
+    if (day > 12 && mon <= 12) return `${y}-${String(mon).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+    if (mon > 12 && day <= 12) return `${y}-${String(day).padStart(2,"0")}-${String(mon).padStart(2,"0")}`;
+    return `${y}-${String(mon).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+  }
+  const d = new Date(s);
+  return isNaN(d) ? null : d.toISOString().slice(0, 10);
+}
+
+const normSex = (v) => {
+  const s = String(v || "").trim().toLowerCase();
+  if (["m", "male", "boy", "b"].includes(s)) return "M";
+  if (["f", "female", "girl", "g"].includes(s)) return "F";
+  return undefined;
+};
+const normNumber = (v) => {
+  const n = Number(String(v || "").replace(/[^0-9.\-]/g, ""));
+  return isNaN(n) ? null : n;
+};
+
+
+
+// Names arrive in two shapes. "Hassan, Amina Yusuf" is surname-first, which many
+// school systems export; "Amina Yusuf Hassan" is how it is written on a report
+// card. The comma is what tells them apart, so it must not simply be stripped.
+function splitName(raw) {
+  const s = String(raw || "").replace(/\s+/g, " ").trim();
+  if (!s) return { display: "", first: "", middle: undefined, surname: undefined };
+
+  if (s.includes(",")) {
+    const [sur, rest = ""] = s.split(",");
+    const given = rest.trim().split(" ").filter(Boolean);
+    const surname = sur.trim();
+    return {
+      display: [...given, surname].join(" "),
+      first: given[0] || surname,
+      middle: given.length > 1 ? given.slice(1).join(" ") : undefined,
+      surname: surname || undefined,
+    };
+  }
+
+  const parts = s.split(" ").filter(Boolean);
+  return {
+    display: s,
+    first: parts[0],
+    middle: parts.length > 2 ? parts.slice(1, -1).join(" ") : undefined,
+    surname: parts.length > 1 ? parts[parts.length - 1] : undefined,
+  };
+}
+
+// ---------- The import screen ----------
+function ImportRecords({ roster, saveRoster, who }) {
+  const [kind, setKind] = useState("pupils");
+  const [rows, setRows] = useState(null);        // parsed file, including header
+  const [headers, setHeaders] = useState([]);
+  const [map, setMap] = useState({});
+  const [hasHeader, setHasHeader] = useState(true);
+  const [text, setText] = useState("");
+  const [err, setErr] = useState("");
+  const [done, setDone] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef(null);
+
+  const spec = IMPORT_KINDS[kind];
+
+  const load = (raw) => {
+    setErr(""); setDone(null);
+    const parsed = parseCSV(raw);
+    if (parsed.length < 2) {
+      setErr("That does not look like a table. It needs a row of column names and at least one record.");
+      setRows(null); return;
+    }
+    const head = parsed[0].map((h) => String(h).trim());
+    setRows(parsed); setHeaders(head);
+    setMap(guessMapping(head, spec.fields));
+  };
+
+  const pickFile = async (file) => {
+    if (!file) return;
+    if (file.size > 6000000) return setErr("That file is very large. Split it and bring it in a few parts.");
+    try { load(await file.text()); } catch (e) { setErr("That file could not be read."); }
+  };
+
+  // switching kind re-guesses against the same file
+  useEffect(() => {
+    if (headers.length) setMap(guessMapping(headers, IMPORT_KINDS[kind].fields));
+    setDone(null);
+  }, [kind]);
+
+  const body = rows ? (hasHeader ? rows.slice(1) : rows) : [];
+  const val = (r, key) => {
+    const i = map[key];
+    return i === undefined || i === null ? "" : String(r[i] ?? "").trim();
+  };
+
+  // ---- work out what would happen, without doing any of it ----
+  const plan = (() => {
+    if (!rows) return null;
+    const missing = spec.fields.filter((f) => f.required && map[f.key] === undefined);
+    if (missing.length) return { missing };
+
+    const byAdm = {};
+    roster.students.forEach((st) => { byAdm[String(st.id).toLowerCase()] = st; });
+    const classByName = {};
+    roster.classes.forEach((c) => { classByName[c.name.toLowerCase().replace(/\s+/g, "")] = c; });
+
+    const ok = [], problems = [];
+    const seen = new Set();
+
+    body.forEach((r, n) => {
+      const line = n + (hasHeader ? 2 : 1);
+      const adm = val(r, "admNo");
+      if (!adm) { problems.push({ line, why: "no admission number" }); return; }
+
+      if (kind === "pupils") {
+        if (seen.has(adm.toLowerCase())) {
+          problems.push({ line, who: adm, why: "this admission number appears twice in the file" }); return;
+        }
+        seen.add(adm.toLowerCase());
+        const name = val(r, "name");
+        if (!name) { problems.push({ line, who: adm, why: "no name" }); return; }
+        const cname = val(r, "className");
+        const cls = classByName[cname.toLowerCase().replace(/\s+/g, "")]
+          || roster.classes.find((c) => c.name.toLowerCase().includes(cname.toLowerCase()) && cname);
+        if (!cls) {
+          problems.push({ line, who: name, why: `no class here called "${cname || "(blank)"}"` }); return;
+        }
+        ok.push({ line, adm, name, cls, row: r, existing: byAdm[adm.toLowerCase()] });
+      }
+
+      if (kind === "fees") {
+        const st = byAdm[adm.toLowerCase()];
+        if (!st) { problems.push({ line, who: adm, why: "no pupil with that admission number — import pupils first" }); return; }
+        const amt = normNumber(val(r, "amount"));
+        if (!amt || amt <= 0) { problems.push({ line, who: st.name, why: "amount is missing or not a number" }); return; }
+        const d = normDate(val(r, "date"));
+        if (!d) { problems.push({ line, who: st.name, why: `date "${val(r,"date")}" could not be read` }); return; }
+        ok.push({ line, st, amt, date: d, row: r });
+      }
+
+      if (kind === "marks") {
+        const st = byAdm[adm.toLowerCase()];
+        if (!st) { problems.push({ line, who: adm, why: "no pupil with that admission number — import pupils first" }); return; }
+        const sub = val(r, "subject");
+        if (!sub) { problems.push({ line, who: st.name, why: "no subject" }); return; }
+        const sc = normNumber(val(r, "score"));
+        if (sc === null || sc < 0 || sc > 100) {
+          problems.push({ line, who: st.name, why: `mark "${val(r,"score")}" is not between 0 and 100` }); return;
+        }
+        ok.push({ line, st, sub, sc, term: val(r, "term") || DEFAULT_TERM, row: r });
+      }
+    });
+
+    const isNew = ok.filter((x) => !x.existing).length;
+    return { ok, problems, isNew, updates: ok.length - isNew };
+  })();
+
+  // ---- write it ----
+  const commit = async () => {
+    if (!plan?.ok?.length) return;
+    setBusy(true); setErr("");
+    try {
+      // a snapshot first, so a bad import is one tap to undo
+      try { await backupNow(`before importing ${plan.ok.length} ${spec.label.toLowerCase()}`); } catch (e) {}
+
+      let next = { ...roster };
+
+      if (kind === "pupils") {
+        const students = [...roster.students];
+        plan.ok.forEach(({ adm, name, cls, row, existing }) => {
+          const n = splitName(name);
+          const rec = {
+            id: adm, name: n.display,
+            firstName: n.first,
+            middleName: n.middle,
+            surname: n.surname,
+            classId: cls.id,
+            sex: normSex(val(row, "sex")),
+            dob: normDate(val(row, "dob")) || undefined,
+            birthCertNo: val(row, "birthCertNo") || undefined,
+            parentName: val(row, "parentName") || "",
+            parentPhone: val(row, "parentPhone") || undefined,
+            parentId: val(row, "parentId") || undefined,
+            feeDue: normNumber(val(row, "feeDue")) || 0,
+            feePaid: normNumber(val(row, "feePaid")) || 0,
+            payments: existing?.payments || [],
+            pin: existing?.pin || String(Math.floor(1000 + Math.random() * 9000)),
+            admittedOn: existing?.admittedOn || todayISO(),
+          };
+          const at = students.findIndex((s) => String(s.id).toLowerCase() === adm.toLowerCase());
+          if (at >= 0) students[at] = { ...students[at], ...rec };
+          else students.push(rec);
+        });
+        next = { ...next, students };
+      }
+
+      if (kind === "fees") {
+        const students = roster.students.map((s) => ({ ...s, payments: [...(s.payments || [])] }));
+        plan.ok.forEach(({ st, amt, date, row }) => {
+          const i = students.findIndex((x) => x.id === st.id);
+          if (i < 0) return;
+          students[i].payments.push({
+            date, amount: amt,
+            receiptNo: val(row, "receiptNo") || `IMP/${date.replace(/-/g, "")}/${i + 1}`,
+            method: (val(row, "method") || "cash").toLowerCase(),
+            mpesaCode: val(row, "mpesaCode") || undefined,
+            imported: true,
+          });
+          students[i].feePaid = (students[i].payments || []).reduce((a, p) => a + (p.amount || 0), 0);
+        });
+        next = { ...next, students };
+      }
+
+      if (kind === "marks") {
+        const marks = JSON.parse(JSON.stringify(roster.marks || {}));
+        plan.ok.forEach(({ st, sub, sc, term }) => {
+          const key = term.replace(/\s+/g, "_");
+          marks[st.classId] = marks[st.classId] || {};
+          marks[st.classId][key] = marks[st.classId][key] || { status: "approved", approved: true, grid: {} };
+          marks[st.classId][key].grid = marks[st.classId][key].grid || {};
+          marks[st.classId][key].grid[st.id] = marks[st.classId][key].grid[st.id] || {};
+          marks[st.classId][key].grid[st.id][sub] = { exam: sc, imported: true };
+        });
+        next = { ...next, marks };
+      }
+
+      saveRoster(logAction(next, who?.name || "Admin",
+        `Imported ${plan.ok.length} ${spec.label.toLowerCase()} from a file`),
+        `${plan.ok.length} ${spec.label.toLowerCase()} brought in`);
+      setDone({ count: plan.ok.length, skipped: plan.problems.length });
+      setRows(null); setText(""); setHeaders([]); setMap({});
+    } catch (e) {
+      setErr(String(e.message || e));
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div>
+      <SectionTitle>Bring in records</SectionTitle>
+      <div style={{ fontFamily: FONT.body, fontSize: 12.5, color: "#4A5A50",
+            marginBottom: 14, lineHeight: 1.6 }}>
+        Move pupils, fees and past results from a previous system. Nothing is written until you have
+        seen exactly what will happen, and a snapshot is taken first — so a bad import is one tap to undo.
+      </div>
+
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+        {Object.entries(IMPORT_KINDS).map(([k, v]) => (
+          <button key={k} onClick={() => setKind(k)}
+            style={{ padding: "7px 15px", borderRadius: 18, fontFamily: FONT.body, fontSize: 13,
+              fontWeight: 700, cursor: "pointer",
+              border: `1px solid ${kind === k ? "#0A2E1A" : "#C6D2CA"}`,
+              background: kind === k ? "#0A2E1A" : "#fff",
+              color: kind === k ? "#fff" : "#4A5A50" }}>{v.label}</button>
+        ))}
+      </div>
+      <div style={{ fontFamily: FONT.body, fontSize: 12, color: "#4A5A50",
+            marginBottom: 16, lineHeight: 1.55 }}>{spec.why}</div>
+
+      {err && <div className="enter" style={{ padding: "9px 12px", borderRadius: 4, background: "#FDE8E6",
+            border: "1px solid #F3C0BB", fontFamily: FONT.body, fontSize: 12.5,
+            color: "#C0261B", marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
+
+      {done && (
+        <div className="enter" style={{ padding: "12px 14px", borderRadius: 5, marginBottom: 16,
+              background: "#E3F5E9", border: "1px solid #A9DEBC", borderLeft: "4px solid #0E7A3C" }}>
+          <div style={{ fontFamily: FONT.display, fontSize: 15, fontWeight: 700, color: "#0A2E1A" }}>
+            {done.count} brought in
+          </div>
+          <div style={{ fontFamily: FONT.body, fontSize: 12.5, color: "#0A2E1A", marginTop: 4, lineHeight: 1.55 }}>
+            {done.skipped > 0
+              ? `${done.skipped} row${done.skipped === 1 ? " was" : "s were"} left out — fix them in the file and bring that part in again.`
+              : "Every row went in."}
+            {" "}If this was wrong, go to Backup and restore the snapshot taken just before.
+          </div>
+        </div>
+      )}
+
+      {!rows && (
+        <div style={{ background: "#F4F8F5", border: "1px solid #DCE6E0", borderRadius: 6, padding: 14 }}>
+          <input ref={fileRef} type="file" accept=".csv,.txt,.tsv" style={{ display: "none" }}
+            onChange={(e) => { pickFile(e.target.files?.[0]); e.target.value = ""; }} />
+          <button onClick={() => fileRef.current?.click()} style={{ ...primaryBtn(), marginBottom: 10 }}>
+            Choose a file
+          </button>
+          <div style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#4A5A50",
+                marginBottom: 14, lineHeight: 1.55 }}>
+            A CSV file. In Excel, use <strong>File → Save As → CSV</strong> first. Or paste the rows
+            below — copying straight out of a spreadsheet works.
+          </div>
+
+          <textarea value={text} onChange={(e) => setText(e.target.value)}
+            placeholder={"Paste here, with the column names on the first line:\n\nAdm No, Name, Class, Guardian, Phone\nSTU/2026/001, Amina Yusuf Hassan, Grade 4, Yusuf Hassan, 0722000000"}
+            style={{ ...darkInput(), width: "100%", height: 130, resize: "vertical",
+                     fontFamily: FONT.mono, fontSize: 12, marginBottom: 10 }} />
+          <button onClick={() => load(text)} disabled={!text.trim()}
+            style={{ ...primaryBtn(), background: "#0A2E1A", opacity: text.trim() ? 1 : 0.5 }}>
+            Read what I pasted
+          </button>
+        </div>
+      )}
+
+      {rows && <ImportMapping
+        spec={spec} headers={headers} map={map} setMap={setMap}
+        hasHeader={hasHeader} setHasHeader={setHasHeader}
+        rowCount={body.length} plan={plan} busy={busy}
+        onCommit={commit} onCancel={() => { setRows(null); setText(""); setErr(""); }} />}
+    </div>
+  );
+}
+
+
+// Confirming the columns, then seeing exactly what will happen. This is the
+// screen that stops a bad import: the guesses are shown, the problems are
+// listed by line number, and the count is on the button itself.
+function ImportMapping({ spec, headers, map, setMap, hasHeader, setHasHeader,
+                         rowCount, plan, busy, onCommit, onCancel }) {
+  const missing = plan?.missing || [];
+
+  return (
+    <div className="enter">
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 9,
+            flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+        <span style={{ fontFamily: FONT.display, fontSize: 15.5, fontWeight: 700, color: "#0A2E1A" }}>
+          {rowCount} row{rowCount === 1 ? "" : "s"} read
+        </span>
+        <button onClick={onCancel} style={{ ...backBtnStyle(), color: "#0A2E1A" }}>use a different file</button>
+      </div>
+
+      <button onClick={() => setHasHeader(!hasHeader)}
+        style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
+          padding: "9px 12px", borderRadius: 4, cursor: "pointer", marginBottom: 14,
+          background: hasHeader ? "#E3F5E9" : "#F4F8F5",
+          border: `1px solid ${hasHeader ? "#0E7A3C" : "#DCE6E0"}` }}>
+        <span style={{ width: 16, height: 16, borderRadius: 3, flex: "0 0 16px",
+          border: `1.5px solid ${hasHeader ? "#0E7A3C" : "#B9C7BF"}`,
+          background: hasHeader ? "#0E7A3C" : "transparent", color: "#fff",
+          fontSize: 11, lineHeight: "14px", textAlign: "center" }}>{hasHeader ? "✓" : ""}</span>
+        <span style={{ fontFamily: FONT.body, fontSize: 13, color: "#0A2E1A" }}>
+          The first line holds the column names
+        </span>
+      </button>
+
+      <div style={{ fontFamily: FONT.mono, fontSize: 9, letterSpacing: 1.2, color: "#4A5A50",
+            textTransform: "uppercase", marginBottom: 7 }}>Which column is which</div>
+      <div style={{ display: "grid", gap: 7, marginBottom: 16 }}>
+        {spec.fields.map((f) => {
+          const chosen = map[f.key];
+          const unset = chosen === undefined || chosen === null;
+          return (
+            <div key={f.key} style={{ display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ flex: "0 0 150px", fontFamily: FONT.body, fontSize: 13,
+                    color: f.required && unset ? "#C0261B" : "#0A2E1A",
+                    fontWeight: f.required ? 700 : 400 }}>
+                {f.label}{f.required && " *"}
+              </span>
+              <select value={unset ? "" : chosen}
+                onChange={(e) => setMap({ ...map, [f.key]:
+                  e.target.value === "" ? undefined : Number(e.target.value) })}
+                style={{ ...darkInput(), flex: 1, minWidth: 150,
+                  borderColor: f.required && unset ? "#C0261B" : "#C6D2CA" }}>
+                <option value="">{f.required ? "— needed —" : "not in this file"}</option>
+                {headers.map((h, i) => (
+                  <option key={i} value={i}>{h || `column ${i + 1}`}</option>
+                ))}
+              </select>
+            </div>
+          );
+        })}
+      </div>
+
+      {missing.length > 0 && (
+        <div style={{ padding: "11px 13px", borderRadius: 4, background: "#FDE8E6",
+              border: "1px solid #F3C0BB", borderLeft: "4px solid #C0261B",
+              fontFamily: FONT.body, fontSize: 12.5, color: "#0A2E1A", marginBottom: 14, lineHeight: 1.55 }}>
+          Still needed: <strong>{missing.map((f) => f.label).join(", ")}</strong>.
+          Choose the matching column above, or add it to the file.
+        </div>
+      )}
+
+      {plan && !missing.length && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))",
+                gap: 10, marginBottom: 14 }}>
+            <StatCard label="Will go in" value={plan.ok.length}
+              tone={plan.ok.length ? "#0E7A3C" : "#4A5A50"} />
+            {plan.isNew !== undefined && <StatCard label="New" value={plan.isNew} />}
+            {plan.updates !== undefined && <StatCard label="Updated" value={plan.updates} tone="#8A6A00" />}
+            <StatCard label="Left out" value={plan.problems.length}
+              tone={plan.problems.length ? "#C0261B" : "#0E7A3C"} />
+          </div>
+
+          {plan.problems.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontFamily: FONT.display, fontSize: 14, fontWeight: 700,
+                    color: "#0A2E1A", marginBottom: 6 }}>
+                What will be left out
+              </div>
+              <div style={{ display: "grid", gap: 4, maxHeight: 220, overflowY: "auto" }}>
+                {plan.problems.slice(0, 60).map((p, i) => (
+                  <div key={i} style={{ padding: "7px 11px", borderRadius: 3, background: "#FDE8E6",
+                        border: "1px solid #F3C0BB", fontFamily: FONT.body, fontSize: 12, color: "#0A2E1A" }}>
+                    <strong>line {p.line}</strong>
+                    {p.who ? ` · ${p.who}` : ""} — {p.why}
+                  </div>
+                ))}
+                {plan.problems.length > 60 && (
+                  <div style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#4A5A50", padding: 4 }}>
+                    …and {plan.problems.length - 60} more of the same kind.
+                  </div>
+                )}
+              </div>
+              <div style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#4A5A50",
+                    marginTop: 7, lineHeight: 1.55 }}>
+                These are skipped, not guessed at. Fix them in the file and bring that part in
+                afterwards — importing the same file twice does no harm, since pupils are matched
+                on admission number.
+              </div>
+            </div>
+          )}
+
+          <button onClick={onCommit} disabled={busy || !plan.ok.length}
+            style={{ ...primaryBtn(), fontSize: 14.5, padding: "11px 20px",
+                     opacity: busy || !plan.ok.length ? 0.5 : 1 }}>
+            {busy ? "Bringing them in…"
+                  : plan.ok.length ? `Bring in ${plan.ok.length} record${plan.ok.length === 1 ? "" : "s"}`
+                  : "Nothing to bring in"}
+          </button>
+          <div style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#4A5A50",
+                marginTop: 8, lineHeight: 1.55 }}>
+            A snapshot is taken first. If this turns out wrong, Backup → restore puts everything
+            back as it was a moment ago.
+          </div>
+        </>
+      )}
     </div>
   );
 }
