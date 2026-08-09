@@ -23,6 +23,7 @@ export const isShared = Boolean(URL_BASE && ANON_KEY);
 const MIRROR_KEY  = "school_mirror_v2";
 const BASE_KEY    = "school_base_v2";
 const PENDING_KEY = "school_pending_v2";
+const SCHOOL_KEY = "school_code_v1";
 const TOKEN_KEY   = "school_token_v1";
 const WHO_KEY     = "school_who_v1";
 
@@ -66,15 +67,31 @@ async function rpc(fn, args) {
 }
 
 // ---------- authentication ----------
-export async function staffLogin(username, password) {
+// The school is named once, here, and checked against the password. After this
+// the token carries it — nothing else ever accepts a school as an argument, so
+// there is no request that can reach across to another school.
+export async function staffLogin(school, username, password) {
   if (!isShared) throw new Error("No database configured");
-  const rows = await rpc("staff_login", { p_username: username, p_password: password });
+  const rows = await rpc("staff_login", {
+    p_school: school, p_username: username, p_password: password });
   const row = Array.isArray(rows) ? rows[0] : rows;
-  if (!row || !row.token) return null;              // wrong credentials
-  const who = { role: row.role, name: row.name, teacherId: row.teacher_id, username, mustChange: !!row.must_change };
+  if (!row || !row.token) return null;              // wrong school, username or password
+  const who = {
+    role: row.role, name: row.name, teacherId: row.teacher_id, username,
+    mustChange: !!row.must_change,
+    schoolCode: row.school_code, schoolName: row.school_name,
+    schoolLocation: row.school_location, isOwner: !!row.is_owner,
+  };
   setSession(row.token, who);
+  try { localStorage.setItem(SCHOOL_KEY, school); } catch (e) {}
   return who;
 }
+
+// The schools this portal serves, for the sign-in screen. Names and codes only.
+export const listSchools = () => rpc("schools_list", {});
+
+// The school last used on this device, so a teacher is not asked every morning.
+export const lastSchool = () => { try { return localStorage.getItem(SCHOOL_KEY) || ""; } catch (e) { return ""; } };
 
 export async function staffLogout() {
   const t = getToken();
@@ -92,7 +109,9 @@ export async function restoreSession() {
     const row = Array.isArray(rows) ? rows[0] : rows;
     if (!row) { setSession(null, null); return null; }
     const who = { role: row.role, name: row.name, teacherId: row.teacher_id,
-                  username: row.username, mustChange: !!row.must_change };
+                  username: row.username, mustChange: !!row.must_change,
+                  schoolCode: row.school_code, schoolName: row.school_name,
+                  schoolLocation: row.school_location, isOwner: !!row.is_owner };
     writeJSON(WHO_KEY, who);
     return who;
   } catch (e) {
@@ -278,7 +297,7 @@ export const mpesaRelease = (code)  => rpc("mpesa_release", { p_token: getToken(
 // Some actions should only happen at school. Position can be faked, so this is
 // a deterrent against convenience rather than a lock against determination —
 // every check is written to an audit trail either way.
-export const geofenceGet = () => rpc("geofence_get", {});
+export const geofenceGet = () => rpc("geofence_get", { p_token: getToken() });
 export const geofenceSet = (v) => rpc("geofence_set", { p_token: getToken(), p_value: v });
 export const locationRecent = (days) => rpc("location_recent", { p_token: getToken(), p_days: days || 14 });
 export const locationRecord = (action, pos, distance, inside, note) =>
@@ -441,3 +460,12 @@ export function passwordProblem(pw, username) {
   }
   return null;
 }
+
+// ---------- the schools this portal serves (owner only) ----------
+export const ownerSchools = () => rpc("owner_schools", { p_token: getToken() });
+export const schoolCreate = (s) => rpc("school_create", {
+  p_token: getToken(), p_code: s.code, p_name: s.name, p_location: s.location || null,
+  p_admin_user: s.adminUser, p_admin_name: s.adminName, p_admin_password: s.adminPassword,
+});
+export const schoolSetActive = (code, active) =>
+  rpc("school_set_active", { p_token: getToken(), p_code: code, p_active: active });

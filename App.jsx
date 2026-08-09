@@ -12,6 +12,7 @@ import {
   assignmentSave, assignmentDelete, assignmentsForClass, submissionsFor, submissionMark,
   assignmentsForStudent, submissionSend,
   changeOwnPassword, passwordProblem, sessionsList, sessionsRevoke, securityRecent,
+  listSchools, lastSchool, ownerSchools, schoolCreate, schoolSetActive,
   workFileAdd, workFileDelete, workFilesList, workFilesForStudent,
   submissionFileAdd, submissionFilesList, downloadWorkFile, readFileAsBase64, storageUsed,
   expenseCategories, expenseAdd, expenseList, expenseSummary, expenseDelete,
@@ -85,7 +86,7 @@ const STATUS = {
   late: { label: "Late", ink: "#8A6A00", mark: "L" },
 };
 
-const APP_VERSION = "v42 · yellow, green and white";
+const APP_VERSION = "v43 · many schools";
 
 // Keeps the last 400 actions so the school can see who changed what.
 const logAction = (roster, actor, action) => {
@@ -107,6 +108,16 @@ const applySchoolIdentity = (s) => {
   SCHOOL_NAME = s?.schoolName || s?.name || DEFAULT_SCHOOL_NAME;
   SCHOOL_LOCATION = s?.schoolLocation || s?.location || DEFAULT_SCHOOL_LOCATION;
   SCHOOL_MOTTO = s?.schoolMotto || s?.motto || DEFAULT_MOTTO;
+};
+
+// The name that arrives with the session takes precedence over anything in the
+// roster: a head teacher signing in to their own school should see their own
+// school's name on every screen and every printed page, whatever else is set.
+const applySessionSchool = (who) => {
+  if (who?.schoolName) {
+    SCHOOL_NAME = who.schoolName;
+    if (who.schoolLocation) SCHOOL_LOCATION = who.schoolLocation;
+  }
 };
 const DEFAULT_ADMIN_PASSWORD = "admin123";
 const DEFAULT_TERM = "Term 1";
@@ -450,6 +461,7 @@ export default function SchoolRegister() {
       try { session = await restoreSession(); } catch (e) { session = getWho(); }
       if (session) {
         setWho(session);
+        applySessionSchool(session);
         setRole(session.role);
         if (session.mustChange) setMustChange(true);
         if (session.role === "teacher") setActiveTeacherId(session.teacherId);
@@ -569,6 +581,7 @@ export default function SchoolRegister() {
       {!role && (
         <RoleGate
           onStaffSignedIn={async (session) => {
+            applySessionSchool(session);
             if (session.mustChange) setMustChange(true);
             setWho(session);
             setRole(session.role);
@@ -979,6 +992,22 @@ const setAttendanceFor = (roster, classId, log) => ({ ...roster, attendance: { .
 
 // ================= ROLE GATE =================
 function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
+  // The portal may serve more than one school. The list is fetched once; when
+  // there is only one, it is chosen silently and never shown — a single-school
+  // portal should not ask a question with one answer.
+  const [schools, setSchools] = useState(null);
+  const [school, setSchool] = useState("");
+  useEffect(() => {
+    listSchools()
+      .then((rows) => {
+        const list = rows || [];
+        setSchools(list);
+        const remembered = lastSchool();
+        if (list.length === 1) setSchool(list[0].code);
+        else if (remembered && list.some((x) => x.code === remembered)) setSchool(remembered);
+      })
+      .catch(() => setSchools([]));
+  }, []);
   const [step, setStep] = useState("root");
   const [creds, setCreds] = useState({ username: "", password: "" });
   const [adm, setAdm] = useState("");
@@ -1033,11 +1062,12 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
   // One sign-in for all staff. The database decides whether this person is
   // an admin or a teacher — the app no longer takes their word for it.
   const signIn = async () => {
+    if (!school) return setErr("Choose your school.");
     if (!creds.username.trim() || !creds.password) return setErr("Enter your username and password.");
     setBusy(true); setErr("");
     try {
-      const session = await staffLogin(creds.username, creds.password);
-      if (!session) { setErr("Username or password not recognised."); setBusy(false); return; }
+      const session = await staffLogin(school, creds.username, creds.password);
+      if (!session) { setErr("School, username or password not recognised."); setBusy(false); return; }
       await onStaffSignedIn(session);
     } catch (e) {
       // Show the real reason — a generic message makes problems impossible to diagnose.
@@ -1101,6 +1131,19 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
         <div>
           <button onClick={() => { setStep("root"); setErr(""); }} style={backBtnStyle()}>← back</button>
           <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
+            {/* Only asked when there is more than one school. A portal serving
+                one school should not put a question with one answer in the way. */}
+            {schools && schools.length > 1 && (
+              <select value={school} onChange={(e) => { setSchool(e.target.value); setErr(""); }}
+                style={{ ...inputStyle(), fontWeight: school ? 600 : 400 }}>
+                <option value="">Choose your school…</option>
+                {schools.map((sc) => (
+                  <option key={sc.code} value={sc.code}>
+                    {sc.name}{sc.location ? ` — ${sc.location}` : ""}
+                  </option>
+                ))}
+              </select>
+            )}
             <input placeholder="Username" autoCapitalize="none" value={creds.username}
               onChange={(e) => setCreds({ ...creds, username: e.target.value })}
               onKeyDown={(e) => e.key === "Enter" && signIn()} style={inputStyle()} />
@@ -1450,6 +1493,7 @@ function AdminView({ roster, saveRoster, onExit, syncState, onForceSave, who }) 
       { key: "health", label: "System health", icon: "approvals" },
       { key: "geofence", label: "School boundary", icon: "duty" },
       { key: "security", label: "Security", icon: "logins" },
+      ...(who?.isOwner ? [{ key: "schools", label: "Schools", icon: "overview" }] : []),
       { key: "mypassword", label: "My password", icon: "logins" },
       { key: "backup", label: "Backup", icon: "backup" },
       { key: "settings", label: "Settings", icon: "settings" },
@@ -2029,6 +2073,8 @@ function AdminView({ roster, saveRoster, onExit, syncState, onForceSave, who }) 
           {tab === "geofence" && <GeofenceSettings who={who} />}
 
           {tab === "security" && <SecurityPanel who={who} />}
+
+          {tab === "schools" && who?.isOwner && <SchoolsPanel who={who} />}
 
           {tab === "mypassword" && <ChangeMyPassword who={who} />}
 
@@ -8276,6 +8322,197 @@ function SecurityPanel({ who }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+
+// ---------- The schools this portal serves ----------
+// Only an owner account sees this. A head teacher must not be able to create
+// schools, or even learn that others exist — so the check is in the database,
+// and this screen simply never appears for anyone else.
+function SchoolsPanel({ who }) {
+  const [rows, setRows] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [f, setF] = useState({ code: "", name: "", location: "",
+                               adminUser: "", adminName: "", adminPassword: "" });
+  const [made, setMade] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const load = async () => {
+    try { setRows(await ownerSchools() || []); }
+    catch (e) { setErr(String(e.message || e)); setRows([]); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const create = async () => {
+    if (!f.code.trim() || !f.name.trim() || !f.adminUser.trim() || !f.adminPassword.trim()) {
+      return setErr("The code, name, head teacher's username and first password are all needed.");
+    }
+    setBusy(true); setErr("");
+    try {
+      const r = await schoolCreate(f);
+      const row = Array.isArray(r) ? r[0] : r;
+      setMade({ ...f, code: row?.out_code || f.code });
+      setF({ code: "", name: "", location: "", adminUser: "", adminName: "", adminPassword: "" });
+      setAdding(false);
+      await load();
+    } catch (e) { setErr(String(e.message || e).replace(/^school_create \\d+: /, "")); }
+    setBusy(false);
+  };
+
+  const toggle = async (sc) => {
+    const msg = sc.active
+      ? `Close ${sc.name}? Staff there will be signed out and cannot sign in again. Nothing is deleted.`
+      : `Reopen ${sc.name}?`;
+    if (!window.confirm(msg)) return;
+    try { await schoolSetActive(sc.code, !sc.active); await load(); }
+    catch (e) { setErr(String(e.message || e)); }
+  };
+
+  return (
+    <div>
+      <SectionTitle>Schools</SectionTitle>
+      <div style={{ fontFamily: FONT.body, fontSize: 12.5, color: "#4A5A50",
+            marginBottom: 14, lineHeight: 1.6 }}>
+        Every school keeps its own pupils, staff, money and records. Nobody at one school can
+        reach another — not their roster, their marks, nor their fees.
+      </div>
+
+      {err && <div className="enter" style={{ padding: "9px 12px", borderRadius: 4, background: "#FDE8E6",
+            border: "1px solid #F3C0BB", fontFamily: FONT.body, fontSize: 12.5,
+            color: "#C0261B", marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
+
+      {/* the one time the first password is ever shown */}
+      {made && (
+        <div className="enter" style={{ padding: "13px 15px", borderRadius: 5, marginBottom: 16,
+              background: "#FFF6D6", border: "1px solid #F0D98A", borderLeft: "4px solid #FFC400" }}>
+          <div style={{ fontFamily: FONT.display, fontSize: 15.5, fontWeight: 700, color: "#0A2E1A" }}>
+            {made.name} is ready
+          </div>
+          <div style={{ fontFamily: FONT.body, fontSize: 12.5, color: "#0A2E1A",
+                marginTop: 6, lineHeight: 1.6 }}>
+            Give the head teacher these three things. <strong>The password is shown once and is not
+            stored anywhere</strong> — they will be made to choose their own when they first sign in.
+          </div>
+          <div style={{ display: "grid", gap: 4, marginTop: 10, fontFamily: FONT.mono, fontSize: 13 }}>
+            <div><span style={{ color: "#4A5A50" }}>school</span> &nbsp;{made.name}</div>
+            <div><span style={{ color: "#4A5A50" }}>username</span> &nbsp;<strong>{made.adminUser}</strong></div>
+            <div><span style={{ color: "#4A5A50" }}>password</span> &nbsp;<strong>{made.adminPassword}</strong></div>
+          </div>
+          <button onClick={() => setMade(null)} style={{ ...primaryBtn(), marginTop: 11, fontSize: 12.5 }}>
+            I have written these down
+          </button>
+        </div>
+      )}
+
+      {!adding && (
+        <button onClick={() => { setAdding(true); setErr(""); }}
+          style={{ ...primaryBtn(), marginBottom: 18 }}>Add a school</button>
+      )}
+
+      {adding && (
+        <div className="enter" style={{ background: "#F4F8F5", border: "1px solid #DCE6E0",
+              borderRadius: 6, padding: 14, marginBottom: 18 }}>
+          <div style={{ fontFamily: FONT.mono, fontSize: 9, letterSpacing: 1.2,
+                color: "#4A5A50", textTransform: "uppercase", marginBottom: 7 }}>The school</div>
+          <div style={{ display: "grid", gap: 8, marginBottom: 10,
+                gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))" }}>
+            <input value={f.name} onChange={(e) => { setF({ ...f, name: e.target.value }); setErr(""); }}
+              placeholder="Full name, e.g. Sabuli Primary School" style={darkInput()} />
+            <input value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })}
+              placeholder="Where it is, e.g. Wajir South" style={darkInput()} />
+            <input value={f.code}
+              onChange={(e) => setF({ ...f, code: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "") })}
+              placeholder="Short code, e.g. sabuli"
+              style={{ ...darkInput(), fontFamily: FONT.mono }} />
+          </div>
+          <div style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#4A5A50",
+                marginTop: -4, marginBottom: 13, lineHeight: 1.5 }}>
+            The short code is what staff choose on the sign-in screen. Keep it short and obvious —
+            it cannot be changed later.
+          </div>
+
+          <div style={{ fontFamily: FONT.mono, fontSize: 9, letterSpacing: 1.2,
+                color: "#4A5A50", textTransform: "uppercase", marginBottom: 7 }}>Its head teacher</div>
+          <div style={{ display: "grid", gap: 8, marginBottom: 12,
+                gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))" }}>
+            <input value={f.adminName} onChange={(e) => setF({ ...f, adminName: e.target.value })}
+              placeholder="Their name" style={darkInput()} />
+            <input value={f.adminUser}
+              onChange={(e) => setF({ ...f, adminUser: e.target.value.toLowerCase().replace(/\\s/g, "") })}
+              placeholder="Username they will use" style={{ ...darkInput(), fontFamily: FONT.mono }} />
+            <input value={f.adminPassword} onChange={(e) => setF({ ...f, adminPassword: e.target.value })}
+              placeholder="First password" style={darkInput()} />
+          </div>
+          <div style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#4A5A50",
+                marginTop: -6, marginBottom: 13, lineHeight: 1.5 }}>
+            They will be made to choose their own password the first time they sign in, so this one
+            only has to survive the walk to their office.
+          </div>
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={create} disabled={busy}
+              style={{ ...primaryBtn(), opacity: busy ? 0.5 : 1 }}>
+              {busy ? "Setting up…" : "Create the school"}
+            </button>
+            <button onClick={() => { setAdding(false); setErr(""); }}
+              style={{ ...backBtnStyle(), color: "#0A2E1A" }}>cancel</button>
+          </div>
+        </div>
+      )}
+
+      {rows === null && <div className="skeleton" style={{ height: 70 }} />}
+      <div style={{ display: "grid", gap: 6 }}>
+        {(rows || []).map((sc) => (
+          <div key={sc.code} style={{ padding: "12px 14px", borderRadius: 5,
+                background: sc.active ? "#FFFFFF" : "#F4F8F5",
+                border: "1px solid #DCE6E0",
+                borderLeft: `4px solid ${sc.active ? "#0E7A3C" : "#B9C7BF"}`,
+                opacity: sc.active ? 1 : 0.75 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 9, flexWrap: "wrap" }}>
+              <span>
+                <span style={{ fontFamily: FONT.display, fontSize: 15.5, fontWeight: 700, color: "#0A2E1A" }}>
+                  {sc.name}
+                </span>
+                <div style={{ fontFamily: FONT.mono, fontSize: 10.5, color: "#5E6E64", marginTop: 2 }}>
+                  {sc.code}{sc.location ? ` · ${sc.location}` : ""}
+                  {!sc.active && " · CLOSED"}
+                </div>
+              </span>
+              <span style={{ textAlign: "right" }}>
+                <div style={{ fontFamily: FONT.mono, fontSize: 12, color: "#0A2E1A" }}>
+                  {sc.pupils} pupils · {sc.logins} staff
+                </div>
+                <div style={{ fontFamily: FONT.mono, fontSize: 10, color: "#5E6E64", marginTop: 2 }}>
+                  {sc.last_used
+                    ? `last used ${new Date(sc.last_used).toLocaleDateString(undefined,
+                        { day: "numeric", month: "short" })}`
+                    : "never signed in"}
+                </div>
+              </span>
+            </div>
+            <button onClick={() => toggle(sc)}
+              style={{ background: "none", border: "none", padding: "6px 0 0", cursor: "pointer",
+                fontFamily: FONT.mono, fontSize: 11,
+                color: sc.active ? "#C0261B" : "#0E7A3C" }}>
+              {sc.active ? "close this school" : "reopen"}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {rows && rows.length > 1 && (
+        <div style={{ marginTop: 18, padding: "11px 13px", borderRadius: 4,
+              background: "#FFF6D6", border: "1px solid #F0D98A",
+              fontFamily: FONT.body, fontSize: 12, color: "#0A2E1A", lineHeight: 1.6 }}>
+          <strong>You now hold records for {rows.reduce((a, r) => a + r.pupils, 0)} children across{" "}
+          {rows.filter((r) => r.active).length} schools.</strong> Each head teacher will expect you to
+          keep it running, restore mistakes, and answer to parents when something goes wrong. That is
+          a real duty, not a technical one.
+        </div>
+      )}
     </div>
   );
 }
