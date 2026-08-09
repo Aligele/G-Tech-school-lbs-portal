@@ -469,3 +469,25 @@ export const schoolCreate = (s) => rpc("school_create", {
 });
 export const schoolSetActive = (code, active) =>
   rpc("school_set_active", { p_token: getToken(), p_code: code, p_active: active });
+
+// ---------- one link per school ----------
+// A school reached at ?school=sarif behaves as if it were the only school in
+// the world: its own name, its own colours of speech, no picker. That is what
+// a head teacher should be given — a link to their school, not a list of
+// everybody's.
+export function schoolFromUrl() {
+  try {
+    const q = new URLSearchParams(window.location.search).get("school");
+    if (q) return q.toLowerCase().replace(/[^a-z0-9]/g, "");
+    // also accept a bare hash, so #sarif works if a link gets mangled
+    const h = (window.location.hash || "").replace(/^#/, "");
+    if (h && /^[a-z0-9]+$/i.test(h)) return h.toLowerCase();
+  } catch (e) {}
+  return "";
+}
+
+// The school's own details, for the sign-in screen, before anyone signs in.
+export const schoolByCode = async (code) => {
+  const rows = await rpc("schools_list", {});
+  return (rows || []).find((s) => s.code === code) || null;
+};

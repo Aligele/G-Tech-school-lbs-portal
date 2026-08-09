@@ -12,7 +12,7 @@ import {
   assignmentSave, assignmentDelete, assignmentsForClass, submissionsFor, submissionMark,
   assignmentsForStudent, submissionSend,
   changeOwnPassword, passwordProblem, sessionsList, sessionsRevoke, securityRecent,
-  listSchools, lastSchool, ownerSchools, schoolCreate, schoolSetActive,
+  listSchools, lastSchool, ownerSchools, schoolCreate, schoolSetActive, schoolFromUrl,
   workFileAdd, workFileDelete, workFilesList, workFilesForStudent,
   submissionFileAdd, submissionFilesList, downloadWorkFile, readFileAsBase64, storageUsed,
   expenseCategories, expenseAdd, expenseList, expenseSummary, expenseDelete,
@@ -86,7 +86,7 @@ const STATUS = {
   late: { label: "Late", ink: "#8A6A00", mark: "L" },
 };
 
-const APP_VERSION = "v43 · many schools";
+const APP_VERSION = "v44 · a link per school";
 
 // Keeps the last 400 actions so the school can see who changed what.
 const logAction = (roster, actor, action) => {
@@ -997,17 +997,39 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
   // portal should not ask a question with one answer.
   const [schools, setSchools] = useState(null);
   const [school, setSchool] = useState("");
+  // A link like ...?school=sarif pins the portal to that one school: its name
+  // on the door, no picker, no sight of anyone else. Each head teacher gets
+  // their own link rather than a list of everybody's.
+  const [pinned, setPinned] = useState(schoolFromUrl());
   useEffect(() => {
     listSchools()
       .then((rows) => {
         const list = rows || [];
         setSchools(list);
+        const fromUrl = schoolFromUrl();
+        if (fromUrl && list.some((x) => x.code === fromUrl)) {
+          setSchool(fromUrl); setPinned(fromUrl);
+          const sc = list.find((x) => x.code === fromUrl);
+          applySchoolIdentity({ name: sc.name, location: sc.location });
+          return;
+        }
+        setPinned("");                       // a bad code falls back to the list
         const remembered = lastSchool();
-        if (list.length === 1) setSchool(list[0].code);
-        else if (remembered && list.some((x) => x.code === remembered)) setSchool(remembered);
+        if (list.length === 1) {
+          setSchool(list[0].code);
+          applySchoolIdentity({ name: list[0].name, location: list[0].location });
+        } else if (remembered && list.some((x) => x.code === remembered)) {
+          setSchool(remembered);
+        }
       })
       .catch(() => setSchools([]));
   }, []);
+
+  // Whichever school is chosen, the door shows its name.
+  useEffect(() => {
+    const sc = (schools || []).find((x) => x.code === school);
+    if (sc) applySchoolIdentity({ name: sc.name, location: sc.location });
+  }, [school, schools]);
   const [step, setStep] = useState("root");
   const [creds, setCreds] = useState({ username: "", password: "" });
   const [adm, setAdm] = useState("");
@@ -1133,7 +1155,7 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
           <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
             {/* Only asked when there is more than one school. A portal serving
                 one school should not put a question with one answer in the way. */}
-            {schools && schools.length > 1 && (
+            {schools && schools.length > 1 && !pinned && (
               <select value={school} onChange={(e) => { setSchool(e.target.value); setErr(""); }}
                 style={{ ...inputStyle(), fontWeight: school ? 600 : 400 }}>
                 <option value="">Choose your school…</option>
@@ -8401,6 +8423,11 @@ function SchoolsPanel({ who }) {
             <div><span style={{ color: "#4A5A50" }}>username</span> &nbsp;<strong>{made.adminUser}</strong></div>
             <div><span style={{ color: "#4A5A50" }}>password</span> &nbsp;<strong>{made.adminPassword}</strong></div>
           </div>
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontFamily: FONT.mono, fontSize: 9, letterSpacing: 1.2,
+                  color: "#4A5A50", marginBottom: 5 }}>THEIR OWN LINK</div>
+            <SchoolLink code={made.code} />
+          </div>
           <button onClick={() => setMade(null)} style={{ ...primaryBtn(), marginTop: 11, fontSize: 12.5 }}>
             I have written these down
           </button>
@@ -8493,6 +8520,9 @@ function SchoolsPanel({ who }) {
                 </div>
               </span>
             </div>
+            {/* the link that takes this school straight to its own door */}
+            <SchoolLink code={sc.code} />
+
             <button onClick={() => toggle(sc)}
               style={{ background: "none", border: "none", padding: "6px 0 0", cursor: "pointer",
                 fontFamily: FONT.mono, fontSize: 11,
@@ -8513,6 +8543,43 @@ function SchoolsPanel({ who }) {
           a real duty, not a technical one.
         </div>
       )}
+    </div>
+  );
+}
+
+
+// The address that opens one school's own portal. Given this link, a head
+// teacher sees their school's name on the door and no sign that any other
+// school exists — which is what they should see.
+function SchoolLink({ code }) {
+  const [copied, setCopied] = useState(false);
+  const url = `${window.location.origin}${window.location.pathname}?school=${code}`;
+
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(url); }
+    catch (e) {
+      // older browsers, and any phone that refuses the clipboard
+      const t = document.createElement("textarea");
+      t.value = url; document.body.appendChild(t); t.select();
+      try { document.execCommand("copy"); } catch (_) {}
+      t.remove();
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2200);
+  };
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+      <code style={{ flex: 1, minWidth: 180, fontFamily: FONT.mono, fontSize: 10.5,
+            background: "#F4F8F5", border: "1px solid #DCE6E0", borderRadius: 4,
+            padding: "6px 9px", color: "#0A2E1A", overflowWrap: "anywhere" }}>
+        {url}
+      </code>
+      <button onClick={copy}
+        style={{ ...primaryBtn(), padding: "6px 13px", fontSize: 11.5,
+                 background: copied ? "#0B5C2D" : "#0E7A3C" }}>
+        {copied ? "copied" : "copy link"}
+      </button>
     </div>
   );
 }
