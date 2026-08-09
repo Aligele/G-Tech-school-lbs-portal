@@ -12,7 +12,7 @@ import {
   assignmentSave, assignmentDelete, assignmentsForClass, submissionsFor, submissionMark,
   assignmentsForStudent, submissionSend,
   changeOwnPassword, passwordProblem, sessionsList, sessionsRevoke, securityRecent,
-  listSchools, lastSchool, ownerSchools, schoolCreate, schoolSetActive, schoolFromUrl,
+  listSchools, lastSchool, ownerSchools, schoolCreate, schoolSetActive, schoolFromUrl, schoolUrl,
   workFileAdd, workFileDelete, workFilesList, workFilesForStudent,
   submissionFileAdd, submissionFilesList, downloadWorkFile, readFileAsBase64, storageUsed,
   expenseCategories, expenseAdd, expenseList, expenseSummary, expenseDelete,
@@ -86,7 +86,7 @@ const STATUS = {
   late: { label: "Late", ink: "#8A6A00", mark: "L" },
 };
 
-const APP_VERSION = "v44 · a link per school";
+const APP_VERSION = "v45 · a subdomain per school";
 
 // Keeps the last 400 actions so the school can see who changed what.
 const logAction = (roster, actor, action) => {
@@ -8553,7 +8553,7 @@ function SchoolsPanel({ who }) {
 // school exists — which is what they should see.
 function SchoolLink({ code }) {
   const [copied, setCopied] = useState(false);
-  const url = `${window.location.origin}${window.location.pathname}?school=${code}`;
+  const url = schoolUrl(code);
 
   const copy = async () => {
     try { await navigator.clipboard.writeText(url); }

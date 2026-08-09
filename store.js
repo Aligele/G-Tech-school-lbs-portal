@@ -477,13 +477,58 @@ export const schoolSetActive = (code, active) =>
 // everybody's.
 export function schoolFromUrl() {
   try {
+    // 1. the subdomain, which is the address a school should be given:
+    //    sarif.gtechschools.co.ke — the domain itself says whose it is.
+    const host = window.location.hostname.toLowerCase();
+    const parts = host.split(".");
+    // Ignore hosts that cannot carry a school subdomain: bare domains, an IP,
+    // localhost, and Vercel's own preview addresses.
+    const RESERVED = ["www", "app", "portal", "admin", "api", "staging", "preview", "test"];
+    const isIp = /^\d+\.\d+\.\d+\.\d+$/.test(host);
+    // A two-part ending like .co.ke means the bare domain already has three
+    // parts — gtechschools.co.ke is not a school called "gtechschools". Count
+    // the parts the ending itself uses before deciding there is a subdomain.
+    const TWO_PART = ["co.ke","or.ke","ac.ke","go.ke","ne.ke","sc.ke","me.ke","mobi.ke",
+                      "co.uk","org.uk","ac.uk","gov.uk","com.au","co.za","co.tz","co.ug"];
+    const endsTwoPart = TWO_PART.some((t) => host.endsWith("." + t) || host === t);
+    const minParts = endsTwoPart ? 4 : 3;
+    if (!isIp && parts.length >= minParts && !host.endsWith("vercel.app")) {
+      const sub = parts[0].replace(/[^a-z0-9]/g, "");
+      if (sub && !RESERVED.includes(sub)) return sub;
+    }
+
+    // 2. ?school=sarif — works on any address, including vercel.app
     const q = new URLSearchParams(window.location.search).get("school");
     if (q) return q.toLowerCase().replace(/[^a-z0-9]/g, "");
-    // also accept a bare hash, so #sarif works if a link gets mangled
+
+    // 3. a bare hash, in case a link gets mangled in a message
     const h = (window.location.hash || "").replace(/^#/, "");
     if (h && /^[a-z0-9]+$/i.test(h)) return h.toLowerCase();
   } catch (e) {}
   return "";
+}
+
+// The address to hand a school. Uses a subdomain once a real domain is in
+// place, and falls back to ?school= on a vercel.app address.
+export function schoolUrl(code) {
+  try {
+    const host = window.location.hostname.toLowerCase();
+    const proto = window.location.protocol;
+    if (host.endsWith("vercel.app") || host === "localhost" ||
+        /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+      return `${window.location.origin}${window.location.pathname}?school=${code}`;
+    }
+    // strip any existing school subdomain before adding this one
+    const parts = host.split(".");
+    const TWO_PART = ["co.ke","or.ke","ac.ke","go.ke","ne.ke","sc.ke","me.ke","mobi.ke",
+                      "co.uk","org.uk","ac.uk","gov.uk","com.au","co.za","co.tz","co.ug"];
+    const endsTwoPart = TWO_PART.some((t) => host.endsWith("." + t) || host === t);
+    const minParts = endsTwoPart ? 4 : 3;
+    const base = parts.length >= minParts ? parts.slice(1).join(".") : host;
+    return `${proto}//${code}.${base}/`;
+  } catch (e) {
+    return `?school=${code}`;
+  }
 }
 
 // The school's own details, for the sign-in screen, before anyone signs in.
