@@ -86,7 +86,7 @@ const STATUS = {
   late: { label: "Late", ink: "#8A6A00", mark: "L" },
 };
 
-const APP_VERSION = "v49 · white";
+const APP_VERSION = "v50 · white + full registration";
 
 // Keeps the last 400 actions so the school can see who changed what.
 const logAction = (roster, actor, action) => {
@@ -129,6 +129,22 @@ const SCORE_OPTIONS = Array.from({ length: 100 }, (_, i) => i + 1);
 // class does Environmental Activities; by Grade 4 that has become Science and
 // Technology; by Grade 7, Integrated Science. Showing every area to every
 // teacher invites marks against the wrong subject, so the lists are filtered.
+
+// The 47 counties. A list beats free text: it stops "Wajir", "wajir" and
+// "Wajir county" becoming three different places in a return to the ministry.
+const KENYA_COUNTIES = [
+  "Baringo","Bomet","Bungoma","Busia","Elgeyo-Marakwet","Embu","Garissa","Homa Bay",
+  "Isiolo","Kajiado","Kakamega","Kericho","Kiambu","Kilifi","Kirinyaga","Kisii",
+  "Kisumu","Kitui","Kwale","Laikipia","Lamu","Machakos","Makueni","Mandera",
+  "Marsabit","Meru","Migori","Mombasa","Murang'a","Nairobi","Nakuru","Nandi",
+  "Narok","Nyamira","Nyandarua","Nyeri","Samburu","Siaya","Taita-Taveta",
+  "Tana River","Tharaka-Nithi","Trans Nzoia","Turkana","Uasin Gishu","Vihiga",
+  "Wajir","West Pokot",
+];
+
+const RELATIONSHIPS = ["Parent","Mother","Father","Guardian","Grandparent",
+                       "Aunt or uncle","Elder sibling","Other"];
+
 const CBC_LEVELS = {
   lower:  { label: "Lower Primary (Grades 1–3)",  grades: [1, 2, 3] },
   upper:  { label: "Upper Primary (Grades 4–6)",  grades: [4, 5, 6] },
@@ -1025,6 +1041,47 @@ function SectionTitle({ children }) {
     </div>
   );
 }
+
+// ---------- form furniture ----------
+// A card per section, a label above every field, and the hint beneath rather
+// than inside the box — a placeholder disappears the moment someone types,
+// which is exactly when they still need it.
+function FormCard({ title, children }) {
+  return (
+    <div style={{ background: "#FFFFFF", border: "1px solid #DCE6E0", borderRadius: 8,
+          padding: "16px 17px" }}>
+      <div style={{ fontFamily: FONT.display, fontSize: 15.5, fontWeight: 700,
+            color: "#0A2E1A", marginBottom: 13 }}>{title}</div>
+      <div style={{ display: "grid", gap: 13 }}>{children}</div>
+    </div>
+  );
+}
+
+function FormRow({ children }) {
+  return (
+    <div className="form-row" style={{ display: "grid", gap: 12,
+          gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))" }}>
+      {children}
+    </div>
+  );
+}
+
+function Field({ label, hint, required, children }) {
+  return (
+    <label style={{ display: "block" }}>
+      <div style={{ fontFamily: FONT.body, fontSize: 12.5, fontWeight: 600,
+            color: "#0A2E1A", marginBottom: 5 }}>
+        {label}{required && <span style={{ color: "#C0261B" }}> *</span>}
+      </div>
+      {children}
+      {hint && (
+        <div style={{ fontFamily: FONT.body, fontSize: 11, color: "#5E6E64",
+              marginTop: 4, lineHeight: 1.45 }}>{hint}</div>
+      )}
+    </label>
+  );
+}
+
 function StatCard({ label, value, tone }) {
   return (
     <div className="lift" style={{
@@ -1527,13 +1584,15 @@ function AdminView({ roster, saveRoster, onExit, syncState, onForceSave, who }) 
     tsc: "", email: "", phone: "", idNumber: "", qualification: "",
   });
   const [showTeacherMore, setShowTeacherMore] = useState(false);
-  const [newStudent, setNewStudent] = useState({
+  const BLANK_STUDENT = {
     firstName: "", middleName: "", surname: "", classId: "",
-    sex: "", dob: "", birthCertNo: "",
-    parentName: "", parentId: "", parentPhone: "", parentRelation: "Parent",
-    homeArea: "", feeDue: "",
-  });
-  const [showMore, setShowMore] = useState(false);
+    sex: "", dob: "", birthCertNo: "", nationality: "Kenyan", assessmentNo: "",
+    county: "", subCounty: "", ward: "", homeArea: "",
+    parentName: "", parentRelation: "Parent", parentId: "", parentPhone: "",
+    parentEmail: "", altPhone: "",
+    medical: "", feeDue: "", boarder: false,
+  };
+  const [newStudent, setNewStudent] = useState(BLANK_STUDENT);
   const [lastAddedClassId, setLastAddedClassId] = useState("");
   const [newAdminPass, setNewAdminPass] = useState("");
   const [payment, setPayment] = useState({ studentId: "", amount: "", method: "cash", code: "", sender: "" });
@@ -1674,33 +1733,44 @@ function AdminView({ roster, saveRoster, onExit, syncState, onForceSave, who }) 
     const pin = String(Math.floor(1000 + Math.random() * 9000));
     const display = [n.firstName, n.middleName, n.surname]
       .map((x) => x.trim()).filter(Boolean).join(" ");
+    const keep = (v) => { const t = String(v ?? "").trim(); return t === "" ? undefined : t; };
 
     const s = {
       id: nextAdmissionNo(roster.students),
       name: display,                       // kept so every existing screen works
       firstName: n.firstName.trim(),
-      middleName: n.middleName.trim() || undefined,
+      middleName: keep(n.middleName),
       surname: n.surname.trim(),
       classId: n.classId,
       sex: n.sex || undefined,
-      dob: n.dob || undefined,
-      birthCertNo: n.birthCertNo.trim() || undefined,
+      dob: keep(n.dob),
+      birthCertNo: keep(n.birthCertNo),
+      nationality: keep(n.nationality) || "Kenyan",
+      assessmentNo: keep(n.assessmentNo),
+      county: keep(n.county),
+      subCounty: keep(n.subCounty),
+      ward: keep(n.ward),
+      homeArea: keep(n.homeArea),
       parentName: n.parentName.trim(),
-      parentId: n.parentId.trim() || undefined,
-      parentPhone: n.parentPhone.trim() || undefined,
       parentRelation: n.parentRelation || undefined,
-      homeArea: n.homeArea.trim() || undefined,
+      parentId: keep(n.parentId),
+      parentPhone: keep(n.parentPhone),
+      parentEmail: keep(n.parentEmail),
+      altPhone: keep(n.altPhone),
+      medical: keep(n.medical),
+      boarder: n.boarder || undefined,
       feeDue: Number(n.feeDue) || 0, feePaid: 0, payments: [], pin,
       admittedOn: todayISO(),
     };
     saveRoster(logAction({ ...roster, students: [...roster.students, s] }, "Admin",
       `Added student ${display} (${s.id})`), `Added ${display} — PIN ${pin}`);
     setLastAddedClassId(s.classId);
-    // the class, fee and home area usually repeat down a queue of families
-    setNewStudent({ firstName: "", middleName: "", surname: "", classId: n.classId,
-      sex: "", dob: "", birthCertNo: "", parentName: "", parentId: "", parentPhone: "",
-      parentRelation: "Parent", homeArea: n.homeArea, feeDue: n.feeDue });
+    // The class, fee and where the family lives usually repeat down a queue of
+    // families from the same village, so those stay filled.
+    setNewStudent({ ...BLANK_STUDENT, classId: n.classId, feeDue: n.feeDue,
+      county: n.county, subCounty: n.subCounty, ward: n.ward });
   };
+
   const removeItem = (kind, id) => saveRoster({ ...roster, [kind]: roster[kind].filter((x) => x.id !== id) }, "Removed");
   const toggleTeacherSubject = (teacherId, subject) => {
     saveRoster({
@@ -1947,97 +2017,180 @@ function AdminView({ roster, saveRoster, onExit, syncState, onForceSave, who }) 
           {tab === "students" && (
             <div>
               <SectionTitle>Students</SectionTitle>
-              <div style={{ background: "#F4F8F5", border: "1px solid #DCE6E0", borderRadius: 5,
-                    padding: 13, marginBottom: 16 }}>
-                {/* the three names the register needs */}
-                <div style={{ fontFamily: FONT.mono, fontSize: 9, letterSpacing: 1.2, color: "#5E6E64",
-                      textTransform: "uppercase", marginBottom: 6, color: "#4A5A50" }}>The pupil</div>
-                <div className="form-row" style={{ display: "grid", gap: 8, marginBottom: 8,
-                      gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))" }}>
-                  <input value={newStudent.firstName}
-                    onChange={(e) => setNewStudent({ ...newStudent, firstName: e.target.value })}
-                    placeholder="First name" style={darkInput()} />
-                  <input value={newStudent.middleName}
-                    onChange={(e) => setNewStudent({ ...newStudent, middleName: e.target.value })}
-                    placeholder="Middle name" style={darkInput()} />
-                  <input value={newStudent.surname}
-                    onChange={(e) => setNewStudent({ ...newStudent, surname: e.target.value })}
-                    placeholder="Surname" style={darkInput()} />
-                </div>
+              {/* Everything is shown. A registration clerk works down the page
+                  rather than hunting behind a toggle for the field they need. */}
+              <div style={{ display: "grid", gap: 14, marginBottom: 16 }}>
 
-                <div style={{ display: "grid", gap: 8, marginBottom: 8,
-                      gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))" }}>
-                  <select value={newStudent.classId}
-                    onChange={(e) => setNewStudent({ ...newStudent, classId: e.target.value })}
-                    style={darkInput()}>
-                    <option value="">Assign class…</option>
-                    {roster.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  <select value={newStudent.sex}
-                    onChange={(e) => setNewStudent({ ...newStudent, sex: e.target.value })}
-                    style={darkInput()}>
-                    <option value="">Boy or girl…</option>
-                    <option value="M">Boy</option>
-                    <option value="F">Girl</option>
-                  </select>
-                  <input value={newStudent.feeDue} type="number" inputMode="numeric"
-                    onChange={(e) => setNewStudent({ ...newStudent, feeDue: e.target.value })}
-                    placeholder="Fee due" style={darkInput()} />
-                </div>
-
-                {/* everything else is real but not needed to get a child into class today */}
-                <button onClick={() => setShowMore(!showMore)}
-                  style={{ background: "none", border: "none", padding: "4px 0", cursor: "pointer",
-                    fontFamily: FONT.mono, fontSize: 11, color: "#0A2E1A" }}>
-                  {showMore ? "▾ hide the rest" : "▸ birth certificate, guardian and contact"}
-                </button>
-
-                {showMore && (
-                  <div className="enter" style={{ marginTop: 9, paddingTop: 11, borderTop: "1px dashed #C6D2CA" }}>
-                    <div style={{ fontFamily: FONT.mono, fontSize: 9, letterSpacing: 1.2, color: "#5E6E64",
-                          textTransform: "uppercase", marginBottom: 6, color: "#4A5A50" }}>Birth record</div>
-                    <div style={{ display: "grid", gap: 8, marginBottom: 11,
-                          gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))" }}>
-                      <input value={newStudent.birthCertNo}
-                        onChange={(e) => setNewStudent({ ...newStudent, birthCertNo: e.target.value })}
-                        placeholder="Birth certificate number" style={darkInput()} />
+                <FormCard title="The pupil">
+                  <FormRow>
+                    <Field label="First name" required>
+                      <input value={newStudent.firstName}
+                        onChange={(e) => setNewStudent({ ...newStudent, firstName: e.target.value })}
+                        style={{ ...darkInput(), width: "100%" }} />
+                    </Field>
+                    <Field label="Middle name">
+                      <input value={newStudent.middleName}
+                        onChange={(e) => setNewStudent({ ...newStudent, middleName: e.target.value })}
+                        style={{ ...darkInput(), width: "100%" }} />
+                    </Field>
+                    <Field label="Surname" required>
+                      <input value={newStudent.surname}
+                        onChange={(e) => setNewStudent({ ...newStudent, surname: e.target.value })}
+                        style={{ ...darkInput(), width: "100%" }} />
+                    </Field>
+                  </FormRow>
+                  <FormRow>
+                    <Field label="Class" required>
+                      <select value={newStudent.classId}
+                        onChange={(e) => setNewStudent({ ...newStudent, classId: e.target.value })}
+                        style={{ ...darkInput(), width: "100%" }}>
+                        <option value="">Choose a class…</option>
+                        {roster.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Boy or girl">
+                      <select value={newStudent.sex}
+                        onChange={(e) => setNewStudent({ ...newStudent, sex: e.target.value })}
+                        style={{ ...darkInput(), width: "100%" }}>
+                        <option value="">Choose…</option>
+                        <option value="M">Boy</option>
+                        <option value="F">Girl</option>
+                      </select>
+                    </Field>
+                    <Field label="Date of birth">
                       <input type="date" value={newStudent.dob}
                         onChange={(e) => setNewStudent({ ...newStudent, dob: e.target.value })}
-                        style={darkInput()} />
-                    </div>
+                        style={{ ...darkInput(), width: "100%" }} />
+                    </Field>
+                  </FormRow>
+                  <FormRow>
+                    <Field label="Birth certificate number">
+                      <input value={newStudent.birthCertNo}
+                        onChange={(e) => setNewStudent({ ...newStudent, birthCertNo: e.target.value })}
+                        placeholder="e.g. BC/2018/44711"
+                        style={{ ...darkInput(), width: "100%", fontFamily: FONT.mono }} />
+                    </Field>
+                    <Field label="Assessment number" hint="KNEC, if the pupil has one">
+                      <input value={newStudent.assessmentNo}
+                        onChange={(e) => setNewStudent({ ...newStudent, assessmentNo: e.target.value })}
+                        style={{ ...darkInput(), width: "100%", fontFamily: FONT.mono }} />
+                    </Field>
+                    <Field label="Nationality">
+                      <input value={newStudent.nationality}
+                        onChange={(e) => setNewStudent({ ...newStudent, nationality: e.target.value })}
+                        style={{ ...darkInput(), width: "100%" }} />
+                    </Field>
+                  </FormRow>
+                </FormCard>
 
-                    <div style={{ fontFamily: FONT.mono, fontSize: 9, letterSpacing: 1.2, color: "#5E6E64",
-                          textTransform: "uppercase", marginBottom: 6, color: "#4A5A50" }}>Parent or guardian</div>
-                    <div style={{ display: "grid", gap: 8,
-                          gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))" }}>
-                      <input value={newStudent.parentName}
-                        onChange={(e) => setNewStudent({ ...newStudent, parentName: e.target.value })}
-                        placeholder="Full name" style={darkInput()} />
-                      <select value={newStudent.parentRelation}
-                        onChange={(e) => setNewStudent({ ...newStudent, parentRelation: e.target.value })}
-                        style={darkInput()}>
-                        {["Parent","Mother","Father","Guardian","Grandparent","Aunt or uncle","Elder sibling"]
-                          .map((r) => <option key={r} value={r}>{r}</option>)}
+                <FormCard title="Where the family lives">
+                  <FormRow>
+                    <Field label="County">
+                      <select value={newStudent.county}
+                        onChange={(e) => setNewStudent({ ...newStudent, county: e.target.value })}
+                        style={{ ...darkInput(), width: "100%" }}>
+                        <option value="">Choose a county…</option>
+                        {KENYA_COUNTIES.map((c) => <option key={c} value={c}>{c}</option>)}
                       </select>
-                      <input value={newStudent.parentId}
-                        onChange={(e) => setNewStudent({ ...newStudent, parentId: e.target.value })}
-                        placeholder="National ID number" style={darkInput()} />
-                      <input value={newStudent.parentPhone} inputMode="tel"
-                        onChange={(e) => setNewStudent({ ...newStudent, parentPhone: e.target.value })}
-                        placeholder="Phone, e.g. 0722 000000" style={darkInput()} />
+                    </Field>
+                    <Field label="Sub-county">
+                      <input value={newStudent.subCounty}
+                        onChange={(e) => setNewStudent({ ...newStudent, subCounty: e.target.value })}
+                        placeholder="e.g. Wajir South"
+                        style={{ ...darkInput(), width: "100%" }} />
+                    </Field>
+                    <Field label="Ward">
+                      <input value={newStudent.ward}
+                        onChange={(e) => setNewStudent({ ...newStudent, ward: e.target.value })}
+                        placeholder="e.g. Benane"
+                        style={{ ...darkInput(), width: "100%" }} />
+                    </Field>
+                  </FormRow>
+                  <FormRow>
+                    <Field label="Village or estate" hint="Enough to find the home if a child is unwell">
                       <input value={newStudent.homeArea}
                         onChange={(e) => setNewStudent({ ...newStudent, homeArea: e.target.value })}
-                        placeholder="Where the family lives" style={darkInput()} />
-                    </div>
-                  </div>
-                )}
+                        style={{ ...darkInput(), width: "100%" }} />
+                    </Field>
+                  </FormRow>
+                </FormCard>
 
-                <button onClick={addStudent}
-                  disabled={!newStudent.firstName.trim() || !newStudent.surname.trim() || !newStudent.classId}
-                  style={{ ...primaryBtn(), marginTop: 12,
-                    opacity: (!newStudent.firstName.trim() || !newStudent.surname.trim() || !newStudent.classId) ? 0.5 : 1 }}>
-                  Add student
-                </button>
+                <FormCard title="Parent or guardian">
+                  <FormRow>
+                    <Field label="Full name">
+                      <input value={newStudent.parentName}
+                        onChange={(e) => setNewStudent({ ...newStudent, parentName: e.target.value })}
+                        style={{ ...darkInput(), width: "100%" }} />
+                    </Field>
+                    <Field label="Relationship to the pupil">
+                      <select value={newStudent.parentRelation}
+                        onChange={(e) => setNewStudent({ ...newStudent, parentRelation: e.target.value })}
+                        style={{ ...darkInput(), width: "100%" }}>
+                        {RELATIONSHIPS.map((r) => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="National ID number">
+                      <input value={newStudent.parentId}
+                        onChange={(e) => setNewStudent({ ...newStudent, parentId: e.target.value })}
+                        style={{ ...darkInput(), width: "100%", fontFamily: FONT.mono }} />
+                    </Field>
+                  </FormRow>
+                  <FormRow>
+                    <Field label="Phone" hint="The number the school will actually ring">
+                      <input value={newStudent.parentPhone} inputMode="tel"
+                        onChange={(e) => setNewStudent({ ...newStudent, parentPhone: e.target.value })}
+                        placeholder="0722 000000"
+                        style={{ ...darkInput(), width: "100%" }} />
+                    </Field>
+                    <Field label="Another number" hint="For when the first cannot be reached">
+                      <input value={newStudent.altPhone} inputMode="tel"
+                        onChange={(e) => setNewStudent({ ...newStudent, altPhone: e.target.value })}
+                        style={{ ...darkInput(), width: "100%" }} />
+                    </Field>
+                    <Field label="Email">
+                      <input value={newStudent.parentEmail} type="email" inputMode="email"
+                        onChange={(e) => setNewStudent({ ...newStudent, parentEmail: e.target.value })}
+                        style={{ ...darkInput(), width: "100%" }} />
+                    </Field>
+                  </FormRow>
+                </FormCard>
+
+                <FormCard title="At the school">
+                  <FormRow>
+                    <Field label="Fee due for the term">
+                      <input type="number" inputMode="numeric" value={newStudent.feeDue}
+                        onChange={(e) => setNewStudent({ ...newStudent, feeDue: e.target.value })}
+                        style={{ ...darkInput(), width: "100%", fontFamily: FONT.mono }} />
+                    </Field>
+                    <Field label="Day or boarding">
+                      <select value={newStudent.boarder ? "boarder" : "day"}
+                        onChange={(e) => setNewStudent({ ...newStudent, boarder: e.target.value === "boarder" })}
+                        style={{ ...darkInput(), width: "100%" }}>
+                        <option value="day">Day scholar</option>
+                        <option value="boarder">Boarder</option>
+                      </select>
+                    </Field>
+                  </FormRow>
+                  <FormRow>
+                    <Field label="Anything the school should know"
+                      hint="Allergies, a condition needing medicine, or a note about collection">
+                      <textarea value={newStudent.medical}
+                        onChange={(e) => setNewStudent({ ...newStudent, medical: e.target.value })}
+                        style={{ ...darkInput(), width: "100%", height: 62, resize: "vertical" }} />
+                    </Field>
+                  </FormRow>
+                </FormCard>
+
+                <div>
+                  <button onClick={addStudent}
+                    disabled={!newStudent.firstName.trim() || !newStudent.surname.trim() || !newStudent.classId}
+                    style={{ ...primaryBtn(), fontSize: 14.5, padding: "11px 22px",
+                      opacity: (!newStudent.firstName.trim() || !newStudent.surname.trim() || !newStudent.classId) ? 0.5 : 1 }}>
+                    Register this pupil
+                  </button>
+                  <button onClick={() => setNewStudent(BLANK_STUDENT)}
+                    style={{ ...backBtnStyle(), marginLeft: 14 }}>clear the form</button>
+                </div>
               </div>
 
               <div style={{ fontFamily: FONT.body, fontSize: 12, color: "#4A5A50", marginBottom: 10, lineHeight: 1.55 }}>
