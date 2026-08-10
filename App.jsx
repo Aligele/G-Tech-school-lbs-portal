@@ -86,7 +86,7 @@ const STATUS = {
   late: { label: "Late", ink: "#8A6A00", mark: "L" },
 };
 
-const APP_VERSION = "v47 · bring in records";
+const APP_VERSION = "v49 · white";
 
 // Keeps the last 400 actions so the school can see who changed what.
 const logAction = (roster, actor, action) => {
@@ -681,7 +681,7 @@ export default function SchoolRegister() {
   useEffect(() => () => { clearTimeout(debounceRef.current); clearTimeout(retryRef.current); }, []);
 
   if (loading) {
-    return <Shell><div style={{ padding: 40, color: "#FFFFFF", fontFamily: FONT.body }}>Opening the register…</div></Shell>;
+    return <Shell><div style={{ padding: 40, color: "#0A2E1A", fontFamily: FONT.body }}>Opening the register…</div></Shell>;
   }
 
   return (
@@ -770,7 +770,7 @@ function SyncBadge({ state, offline, onRetry }) {
     }}>
       <span>{s.text}</span>
       {state === "error" && !offline && (
-        <button onClick={onRetry} style={{ background: "#FFC400", color: "#073D22", border: "none", borderRadius: 12, padding: "3px 10px", fontFamily: FONT.mono, fontSize: 11, fontWeight: 700 }}>Retry now</button>
+        <button onClick={onRetry} style={{ background: "#FFC400", color: "#0A2E1A", border: "none", borderRadius: 12, padding: "3px 10px", fontFamily: FONT.mono, fontSize: 11, fontWeight: 700 }}>Retry now</button>
       )}
     </div>
   );
@@ -779,12 +779,12 @@ function SyncBadge({ state, offline, onRetry }) {
 // ================= SHELL =================
 function Shell({ children }) {
   return (
-    <div style={{ minHeight: "100vh", background: "#073D22" }}>
+    <div style={{ minHeight: "100vh", background: "#F3F5F4" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
         * { box-sizing: border-box; }
         body { margin: 0; }
-        ::selection { background: #FFC400; color: #073D22; }
+        ::selection { background: #FFC400; color: #F3F5F4; }
         button { font-family: inherit; cursor: pointer; }
         input, select { font-family: inherit; }
         button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #FFC400; outline-offset: 2px; }
@@ -801,7 +801,7 @@ function Shell({ children }) {
         body, input, select, textarea, button { color: #0A2E1A; }
 
         :root {
-          --forest:     #073D22;
+          --ground:     #F3F5F4;
           --ink:        #0A2E1A;
           --ink:        #0A2E1A;
           --green:      #0E7A3C;
@@ -824,7 +824,7 @@ function Shell({ children }) {
         button:not(:disabled):hover  { filter: brightness(1.05); }
 
         /* selection in the school's own colours */
-        ::selection { background: var(--yellow); color: var(--forest); }
+        ::selection { background: var(--yellow); color: var(--ground); }
 
         /* a sliver of yellow under every panel heading — the signature */
         .rule-y { position: relative; }
@@ -882,7 +882,7 @@ function Shell({ children }) {
         @keyframes pulseIn { 0% { transform: scale(.94); opacity:.5 } 60% { transform: scale(1.02) } 100% { transform: scale(1); opacity:1 } }
         .pulse { animation: pulseIn .34s cubic-bezier(.2,.7,.3,1); }
         @keyframes shimmer { 0% { background-position:-420px 0 } 100% { background-position:420px 0 } }
-        .skeleton { background: linear-gradient(90deg, rgba(255,255,255,.06) 25%, rgba(241,236,225,.13) 37%, rgba(255,255,255,.06) 63%);
+        .skeleton { background: linear-gradient(90deg, rgba(10,46,26,.05) 25%, rgba(10,46,26,.11) 37%, rgba(10,46,26,.05) 63%);
                     background-size: 900px 100%; animation: shimmer 1.3s linear infinite; border-radius: 3px; }
         @keyframes slideUp { from { opacity:0; transform: translateY(9px) } to { opacity:1; transform:none } }
         .enter { animation: slideUp .3s cubic-bezier(.2,.7,.3,1) both; }
@@ -931,14 +931,13 @@ function Shell({ children }) {
         .gate-bg {
           position: fixed; inset: 0; pointer-events: none;
           background:
-            radial-gradient(60% 40% at 50% 0%, rgba(232,178,61,0.16), transparent 70%),
-            radial-gradient(50% 40% at 85% 100%, rgba(255,196,0,0.35), transparent 70%),
-            linear-gradient(180deg, #073D22 0%, #073D22 45%, #05301A 100%);
+            radial-gradient(70% 45% at 50% 0%, rgba(14,122,60,0.05), transparent 70%),
+            linear-gradient(180deg, #FFFFFF 0%, #F6F8F7 100%);
         }
         .role-card { transition: transform .18s ease, border-color .18s ease, background .18s ease; }
         .role-card:active { transform: scale(0.985); }
         @media (hover:hover) { .role-card:hover { border-color: #FFC400; background: #2A4636; } }
-        .rule { height:1px; flex:1; background:linear-gradient(90deg,transparent,#155336,transparent); }
+        .rule { height:1px; flex:1; background:linear-gradient(90deg,transparent,#E1E7E3,transparent); }
         @media print {
           .no-print { display: none !important; }
           html, body { background: #fff !important; }
@@ -956,7 +955,7 @@ function Toast({ msg }) {
   return (
     <div className="chalk-fade" style={{
       position: "fixed", top: 18, left: "50%", transform: "translateX(-50%)",
-      background: "#FFC400", color: "#073D22", padding: "8px 18px", borderRadius: 3,
+      background: "#FFC400", color: "#0A2E1A", padding: "8px 18px", borderRadius: 3,
       fontFamily: FONT.body, fontWeight: 600, fontSize: 13, zIndex: 100,
       boxShadow: "0 4px 14px rgba(0,0,0,0.25)", maxWidth: "84vw", textAlign: "center",
     }}>{msg}</div>
@@ -990,11 +989,11 @@ function Seal({ size = 56, ink = "#FFC400" }) {
 }
 
 // ---------- shared styles ----------
-const inputStyle = () => ({ width: "100%", padding: "10px 12px", borderRadius: 3, border: "1px solid #0B5C2D", background: "#073D22", color: "#FFFFFF", fontFamily: FONT.body, fontSize: 14, marginBottom: 4 });
-const backBtnStyle = () => ({ background: "none", border: "none", color: "#FFC400", fontFamily: FONT.mono, fontSize: 12, padding: 0 });
+const inputStyle = () => ({ width: "100%", padding: "10px 12px", borderRadius: 3, border: "1.5px solid #C6D2CA", background: "#FFFFFF", color: "#0A2E1A", fontFamily: FONT.body, fontSize: 14, marginBottom: 4 });
+const backBtnStyle = () => ({ background: "none", border: "none", color: "#0B5C2D", fontFamily: FONT.mono, fontSize: 12, padding: 0, textDecoration: "underline" });
 const paperPanel = () => ({
   background: "#FFFFFF", borderRadius: 8, border: "1px solid #DCE6E0",
-  boxShadow: "0 10px 34px rgba(0,0,0,0.30)",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
 });
 const darkInput = () => ({
   padding: "10px 12px", borderRadius: 4, border: "1.5px solid #C6D2CA",
@@ -1010,7 +1009,7 @@ const primaryBtn = () => ({
 // The one thing on a screen that matters most: black on yellow, which the eye
 // finds before it finds anything else.
 const alertBtn = () => ({
-  background: "#FFC400", color: "#073D22", border: "none", borderRadius: 4,
+  background: "#FFC400", color: "#0A2E1A", border: "none", borderRadius: 4,
   padding: "10px 17px", fontFamily: FONT.body, fontSize: 13.5, fontWeight: 800,
   letterSpacing: 0.2, boxShadow: "0 1px 0 rgba(0,0,0,.22)",
 });
@@ -1045,12 +1044,12 @@ function topBar(title, onExit) {
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <Seal size={38} />
         <div>
-          <div style={{ fontFamily: FONT.mono, color: "#FFC400", fontSize: 10, letterSpacing: 1.4 }}>{SCHOOL_NAME.toUpperCase()}</div>
-          <div style={{ fontFamily: FONT.mono, color: "#93A69A", fontSize: 9.5, letterSpacing: 1 }}>{SCHOOL_LOCATION}</div>
-          <div style={{ fontFamily: FONT.display, color: "#FFFFFF", fontSize: 19, fontWeight: 600 }}>{title}</div>
+          <div style={{ fontFamily: FONT.mono, color: "#5E6E64", fontSize: 10, letterSpacing: 1.4 }}>{SCHOOL_NAME.toUpperCase()}</div>
+          <div style={{ fontFamily: FONT.mono, color: "#5E6E64", fontSize: 9.5, letterSpacing: 1 }}>{SCHOOL_LOCATION}</div>
+          <div style={{ fontFamily: FONT.display, color: "#0A2E1A", fontSize: 19, fontWeight: 700 }}>{title}</div>
         </div>
       </div>
-      <button onClick={onExit} style={{ background: "transparent", border: "1px solid #155336", color: "#FFFFFF", borderRadius: 3, padding: "7px 14px", fontFamily: FONT.body, fontSize: 12, whiteSpace: "nowrap" }}>Sign out</button>
+      <button onClick={onExit} style={{ background: "#FFFFFF", border: "1px solid #C6D2CA", color: "#0A2E1A", borderRadius: 4, padding: "7px 14px", fontFamily: FONT.body, fontSize: 12, whiteSpace: "nowrap" }}>Sign out</button>
     </div>
   );
 }
@@ -1059,8 +1058,8 @@ function TabBar({ tabs, active, onChange }) {
     <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
       {tabs.map((t) => (
         <button key={t} onClick={() => onChange(t)} style={{
-          background: active === t ? "#FFC400" : "transparent", color: active === t ? "#073D22" : "#FFFFFF",
-          border: "1px solid " + (active === t ? "#FFC400" : "#155336"), borderRadius: 3, padding: "6px 13px",
+          background: active === t ? "#FFC400" : "transparent", color: active === t ? "#F3F5F4" : "#FFFFFF",
+          border: "1px solid " + (active === t ? "#FFC400" : "#E1E7E3"), borderRadius: 3, padding: "6px 13px",
           fontFamily: FONT.body, fontSize: 12.5, fontWeight: 600, textTransform: "capitalize",
         }}>{t}</button>
       ))}
@@ -1088,7 +1087,7 @@ const getMarksFor = (roster, classId, term) => roster.marks?.[classId]?.[termKey
 // Older records only had a boolean, so they map onto the new states cleanly.
 const MARK_STATUS = {
   draft:     { label: "DRAFT — not yet sent to admin",        bg: "#FFF6D6", fg: "#8A6A00", border: "#F0D98A" },
-  submitted: { label: "SENT FOR APPROVAL — awaiting admin",   bg: "#EFF5F1", fg: "#0E4A29", border: "#C6D2CA" },
+  submitted: { label: "SENT FOR APPROVAL — awaiting admin",   bg: "#EFF5F1", fg: "#FFFFFF", border: "#C6D2CA" },
   approved:  { label: "APPROVED — visible to students & parents", bg: "#E3F5E9", fg: "#0E7A3C", border: "#A9DEBC" },
   returned:  { label: "RETURNED BY ADMIN — needs correction", bg: "#FDE8E6", fg: "#C0261B", border: "#F3C0BB" },
 };
@@ -1235,20 +1234,20 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
         <div style={{
           width: 84, height: 84, margin: "0 auto", borderRadius: "50%",
           display: "flex", alignItems: "center", justifyContent: "center",
-          background: "radial-gradient(circle at 35% 25%, #0B5C2D, #0A3A20)",
-          border: "1px solid #155336",
+          background: "#FFFFFF", border: "1px solid #DCE6E0",
+          border: "1px solid #E1E7E3",
           boxShadow: "0 0 0 6px rgba(232,178,61,0.07), 0 10px 26px rgba(0,0,0,0.35)",
         }}>
           <Seal size={52} />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "16px 0 0" }}>
-          <span className="rule" /><span style={{ fontFamily: FONT.mono, color: "#93A899", fontSize: 9.5, letterSpacing: 2, whiteSpace: "nowrap" }}>REPUBLIC OF KENYA</span><span className="rule" />
+          <span className="rule" /><span style={{ fontFamily: FONT.mono, color: "#5E6E64", fontSize: 9.5, letterSpacing: 2, whiteSpace: "nowrap" }}>REPUBLIC OF KENYA</span><span className="rule" />
         </div>
-        <div style={{ fontFamily: FONT.mono, color: "#93A899", fontSize: 9.5, letterSpacing: 2, marginTop: 5 }}>MINISTRY OF EDUCATION</div>
-        <h1 style={{ fontFamily: FONT.display, color: "#F7F5EF", fontSize: 25, margin: "12px 0 0", fontWeight: 700, lineHeight: 1.22 }}>{SCHOOL_NAME}</h1>
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 9, padding: "4px 12px", borderRadius: 20, border: "1px solid #1C6B44", background: "rgba(8,48,27,0.70)" }}>
+        <div style={{ fontFamily: FONT.mono, color: "#5E6E64", fontSize: 9.5, letterSpacing: 2, marginTop: 5 }}>MINISTRY OF EDUCATION</div>
+        <h1 style={{ fontFamily: FONT.display, color: "#0A2E1A", fontSize: 25, margin: "12px 0 0", fontWeight: 700, lineHeight: 1.22 }}>{SCHOOL_NAME}</h1>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 9, padding: "4px 12px", borderRadius: 20, border: "1px solid #CBD6D0", background: "rgba(255,255,255,0.9)" }}>
           <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#FFC400" }} />
-          <span style={{ fontFamily: FONT.mono, color: "#FFC400", fontSize: 11, letterSpacing: 0.8 }}>{SCHOOL_LOCATION}</span>
+          <span style={{ fontFamily: FONT.mono, color: "#0B5C2D", fontSize: 11, letterSpacing: 0.8 }}>{SCHOOL_LOCATION}</span>
         </div>
       </div>
 
@@ -1283,7 +1282,7 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
               onChange={(e) => setCreds({ ...creds, password: e.target.value })}
               onKeyDown={(e) => e.key === "Enter" && signIn()} style={inputStyle()} />
             {err && <div style={{ color: "#F08E80", fontFamily: FONT.mono, fontSize: 12 }}>{err}</div>}
-            <button onClick={signIn} disabled={busy} style={{ ...primaryBtn(), background: "#FFC400", color: "#073D22", opacity: busy ? 0.6 : 1 }}>
+            <button onClick={signIn} disabled={busy} style={{ ...primaryBtn(), background: "#FFC400", color: "#0A2E1A", opacity: busy ? 0.6 : 1 }}>
               {busy ? "Signing in…" : "Sign in"}
             </button>
             {note && <div style={{ color: "#7BD79B", fontFamily: FONT.body, fontSize: 12, lineHeight: 1.5 }}>{note}</div>}
@@ -1299,7 +1298,7 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
         <div>
           <button onClick={() => { setStep("staff"); setErr(""); }} style={backBtnStyle()}>← back to sign in</button>
           <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
-            <div style={{ fontFamily: FONT.display, color: "#FFFFFF", fontSize: 17, fontWeight: 600 }}>Reset your password</div>
+            <div style={{ fontFamily: FONT.display, color: "#0A2E1A", fontSize: 17, fontWeight: 700 }}>Reset your password</div>
 
             {reset.stage === "ask" && (
               <>
@@ -1311,10 +1310,10 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
                   onKeyDown={(e) => e.key === "Enter" && sendCode()} style={inputStyle()} />
                 {err && <div style={{ color: "#F08E80", fontFamily: FONT.mono, fontSize: 12 }}>{err}</div>}
                 {note && <div style={{ color: "#7BD79B", fontFamily: FONT.body, fontSize: 12, lineHeight: 1.5 }}>{note}</div>}
-                <button onClick={sendCode} disabled={busy} style={{ ...primaryBtn(), background: "#FFC400", color: "#073D22", opacity: busy ? 0.6 : 1 }}>
+                <button onClick={sendCode} disabled={busy} style={{ ...primaryBtn(), background: "#FFC400", color: "#0A2E1A", opacity: busy ? 0.6 : 1 }}>
                   {busy ? "Sending…" : "Send code"}
                 </button>
-                <div style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#8FA396", marginTop: 4, lineHeight: 1.5 }}>
+                <div style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#5E6E64", marginTop: 4, lineHeight: 1.5 }}>
                   No email on your account? The school administrator can set a new password for you.
                 </div>
               </>
@@ -1331,7 +1330,7 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
                   onChange={(e) => setReset({ ...reset, pw2: e.target.value })}
                   onKeyDown={(e) => e.key === "Enter" && applyReset()} style={inputStyle()} />
                 {err && <div style={{ color: "#F08E80", fontFamily: FONT.mono, fontSize: 12 }}>{err}</div>}
-                <button onClick={applyReset} disabled={busy} style={{ ...primaryBtn(), background: "#FFC400", color: "#073D22", opacity: busy ? 0.6 : 1 }}>
+                <button onClick={applyReset} disabled={busy} style={{ ...primaryBtn(), background: "#FFC400", color: "#0A2E1A", opacity: busy ? 0.6 : 1 }}>
                   {busy ? "Saving…" : "Set new password"}
                 </button>
                 <button onClick={sendCode} disabled={busy} style={{ ...backBtnStyle(), marginTop: 4, textAlign: "left" }}>Send another code</button>
@@ -1353,10 +1352,10 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
             <input placeholder="PIN" type="password" inputMode="numeric" value={pin}
               onChange={(e) => setPin(e.target.value)} onKeyDown={(e) => e.key === "Enter" && parentSignIn()} style={inputStyle()} />
             {err && <div style={{ color: "#F08E80", fontFamily: FONT.mono, fontSize: 12 }}>{err}</div>}
-            <button onClick={parentSignIn} disabled={busy} style={{ ...primaryBtn(), background: "#FFC400", color: "#073D22", opacity: busy ? 0.6 : 1 }}>
+            <button onClick={parentSignIn} disabled={busy} style={{ ...primaryBtn(), background: "#FFC400", color: "#0A2E1A", opacity: busy ? 0.6 : 1 }}>
               {busy ? "Checking…" : "View results"}
             </button>
-            <div style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#8FA396", marginTop: 4 }}>
+            <div style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#5E6E64", marginTop: 4 }}>
               Lost the PIN? Ask the school office.
             </div>
           </div>
@@ -1365,7 +1364,7 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
 
       <div style={{ textAlign: "center", marginTop: 34, fontFamily: FONT.mono, fontSize: 9.5, color: "#0B5C2D", letterSpacing: 1 }}>
         {SCHOOL_MOTTO}
-        <div style={{ marginTop: 6, fontSize: 9, color: "#6C7F72", letterSpacing: 0.6 }}>{APP_VERSION}</div>
+        <div style={{ marginTop: 6, fontSize: 9, color: "#8A968E", letterSpacing: 0.6 }}>{APP_VERSION}</div>
       </div>
     </div>
     </>
@@ -1379,22 +1378,22 @@ function RoleCard({ title, desc, onClick, glyph }) {
   return (
     <button onClick={onClick} className="role-card lift" style={{
       display: "flex", alignItems: "center", gap: 14, width: "100%", textAlign: "left",
-      background: "#0E4A29", border: "1px solid #1C6B44", borderRadius: 10,
-      padding: "16px 17px", color: "#FFFFFF",
-      boxShadow: "0 4px 18px rgba(0,0,0,0.55)", position: "relative", overflow: "hidden",
+      background: "#FFFFFF", border: "1px solid #DCE6E0", borderRadius: 10,
+      padding: "16px 17px", color: "#0A2E1A",
+      boxShadow: "0 2px 10px rgba(0,0,0,0.06)", position: "relative", overflow: "hidden",
     }}>
       <span style={{
         flex: "0 0 auto", width: 44, height: 44, borderRadius: 10,
         background: "#FFC400", display: "flex", alignItems: "center", justifyContent: "center",
-        color: "#073D22", fontFamily: FONT.mono, fontSize: 18, fontWeight: 800,
+        color: "#0A2E1A", fontFamily: FONT.mono, fontSize: 18, fontWeight: 800,
       }}>{glyph}</span>
       <span style={{ flex: 1, minWidth: 0 }}>
         <span style={{ display: "block", fontFamily: FONT.display, fontSize: 18.5,
               fontWeight: 700, letterSpacing: 0.2 }}>{title}</span>
         <span style={{ display: "block", fontFamily: FONT.body, fontSize: 12.5,
-              color: "#B3C4B8", marginTop: 3, lineHeight: 1.4 }}>{desc}</span>
+              color: "#5E6E64", marginTop: 3, lineHeight: 1.4 }}>{desc}</span>
       </span>
-      <span style={{ flex: "0 0 auto", color: "#FFC400", fontSize: 22, fontFamily: FONT.body }}>›</span>
+      <span style={{ flex: "0 0 auto", color: "#0E7A3C", fontSize: 22, fontFamily: FONT.body }}>›</span>
     </button>
   );
 }
@@ -1435,27 +1434,27 @@ function Sidebar({ open, onClose, groups, active, onPick, heading, subheading })
   return (
     <>
       <div onClick={onClose} className="no-print" style={{
-        position: "fixed", inset: 0, background: "rgba(10,20,15,0.55)", zIndex: 200,
+        position: "fixed", inset: 0, background: "rgba(10,20,15,0.35)", zIndex: 200,
         opacity: open ? 1 : 0, pointerEvents: open ? "auto" : "none", transition: "opacity .22s ease",
       }} />
       <nav className="no-print" style={{
         position: "fixed", top: 0, left: 0, bottom: 0, width: 268, maxWidth: "84vw", zIndex: 201,
-        background: "linear-gradient(180deg,#073D22,#05301A)", borderRight: "1px solid #155336",
+        background: "#FFFFFF", borderRight: "1px solid #DCE6E0", boxShadow: "2px 0 16px rgba(0,0,0,0.08)",
         transform: open ? "translateX(0)" : "translateX(-102%)", transition: "transform .24s cubic-bezier(.2,.7,.3,1)",
         overflowY: "auto", boxShadow: open ? "6px 0 24px rgba(0,0,0,0.35)" : "none",
       }}>
-        <div style={{ padding: "18px 18px 14px", borderBottom: "1px solid #155336", display: "flex", alignItems: "center", gap: 11 }}>
+        <div style={{ padding: "18px 18px 14px", borderBottom: "1px solid #E1E7E3", display: "flex", alignItems: "center", gap: 11 }}>
           <Seal size={34} />
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: FONT.display, color: "#FFFFFF", fontSize: 15, fontWeight: 600, lineHeight: 1.2 }}>{heading}</div>
-            <div style={{ fontFamily: FONT.mono, color: "#93A69A", fontSize: 10, marginTop: 2 }}>{subheading}</div>
+            <div style={{ fontFamily: FONT.display, color: "#0A2E1A", fontSize: 15.5, fontWeight: 700, lineHeight: 1.2 }}>{heading}</div>
+            <div style={{ fontFamily: FONT.mono, color: "#5E6E64", fontSize: 10, marginTop: 2 }}>{subheading}</div>
           </div>
         </div>
 
         <div style={{ padding: "10px 0 26px" }}>
           {groups.map((g) => (
             <div key={g.title} style={{ marginBottom: 6 }}>
-              <div style={{ fontFamily: FONT.mono, fontSize: 9.5, letterSpacing: 1.4, color: "#FFC400", padding: "12px 18px 6px" }}>
+              <div style={{ fontFamily: FONT.mono, fontSize: 9.5, letterSpacing: 1.4, color: "#5E6E64", padding: "14px 18px 6px" }}>
                 {g.title}
               </div>
               {g.items.map((it) => {
@@ -1463,15 +1462,15 @@ function Sidebar({ open, onClose, groups, active, onPick, heading, subheading })
                 return (
                   <button key={it.key} onClick={() => { onPick(it.key); onClose(); }} style={{
                     display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left",
-                    padding: "11px 18px", border: "none", background: on ? "#2A4636" : "transparent",
-                    borderLeft: `3px solid ${on ? "#FFC400" : "transparent"}`,
-                    color: on ? "#FFFFFF" : "#B8C4B9", fontFamily: FONT.body, fontSize: 13.5,
+                    padding: "11px 18px", border: "none", background: on ? "#E3F5E9" : "transparent",
+                    borderLeft: `3px solid ${on ? "#0E7A3C" : "transparent"}`,
+                    color: on ? "#0B5C2D" : "#4A5A50", fontFamily: FONT.body, fontSize: 13.5,
                     fontWeight: on ? 600 : 400,
                   }}>
-                    <span style={{ color: on ? "#FFC400" : "#8FA396", display: "flex" }}><NavIcon d={ICONS[it.icon] || ICONS.overview} /></span>
+                    <span style={{ color: on ? "#0E7A3C" : "#8A968E", display: "flex" }}><NavIcon d={ICONS[it.icon] || ICONS.overview} /></span>
                     <span style={{ flex: 1 }}>{it.label}</span>
                     {it.badge > 0 && (
-                      <span style={{ background: "#FFC400", color: "#073D22", borderRadius: 10,
+                      <span style={{ background: "#FFC400", color: "#0A2E1A", borderRadius: 10,
                             padding: "1px 8px", fontFamily: FONT.mono, fontSize: 10, fontWeight: 800 }}>{it.badge}</span>
                     )}
                   </button>
@@ -1490,30 +1489,30 @@ function PortalHeader({ title, section, onMenu, onExit, badge = 0 }) {
   return (
     <div className="no-print" style={{
       display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
-      background: "rgba(7,61,34,0.96)", borderBottom: "2px solid #FFC400",
+      background: "rgba(255,255,255,0.97)", borderBottom: "1px solid #DCE6E0",
       position: "sticky", top: 0, zIndex: 120, backdropFilter: "blur(6px)",
     }}>
       <button onClick={onMenu} aria-label={badge > 0 ? `Menu — ${badge} waiting for approval` : "Menu"}
         style={{
           display: "flex", flexDirection: "column", gap: 4, background: "transparent",
-          border: "1px solid #1C6B44", borderRadius: 6, padding: "9px 10px", position: "relative",
+          border: "1px solid #CBD6D0", borderRadius: 6, padding: "9px 10px", position: "relative",
         }}>
         {[0, 1, 2].map((i) => <span key={i} style={{ width: 16, height: 2, background: "#FFC400", borderRadius: 2, display: "block" }} />)}
         {/* a count here means it is visible from every screen, not only the dashboard */}
         {badge > 0 && (
           <span className="pulse alert-dot" style={{
-            position: "absolute", top: -7, right: -7, background: "#FFC400", color: "#073D22",
+            position: "absolute", top: -7, right: -7, background: "#FFC400", color: "#0A2E1A",
             borderRadius: 10, minWidth: 19, height: 19, display: "grid", placeItems: "center",
             fontFamily: FONT.mono, fontSize: 10.5, fontWeight: 800, padding: "0 5px",
-            border: "2px solid #073D22",
+            border: "2px solid #FFFFFF",
           }}>{badge > 99 ? "99+" : badge}</span>
         )}
       </button>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: FONT.mono, color: "#93A69A", fontSize: 9.5, letterSpacing: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
-        <div style={{ fontFamily: FONT.display, color: "#FFFFFF", fontSize: 17, fontWeight: 600, textTransform: "capitalize" }}>{section}</div>
+        <div style={{ fontFamily: FONT.mono, color: "#5E6E64", fontSize: 9.5, letterSpacing: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
+        <div style={{ fontFamily: FONT.display, color: "#0A2E1A", fontSize: 17, fontWeight: 700, textTransform: "capitalize" }}>{section}</div>
       </div>
-      <button onClick={onExit} style={{ background: "transparent", border: "1px solid #155336", color: "#FFFFFF", borderRadius: 4, padding: "7px 12px", fontFamily: FONT.body, fontSize: 12, whiteSpace: "nowrap" }}>Sign out</button>
+      <button onClick={onExit} style={{ background: "#FFFFFF", border: "1px solid #C6D2CA", color: "#0A2E1A", borderRadius: 4, padding: "7px 12px", fontFamily: FONT.body, fontSize: 12, whiteSpace: "nowrap" }}>Sign out</button>
     </div>
   );
 }
@@ -1575,7 +1574,7 @@ function AdminView({ roster, saveRoster, onExit, syncState, onForceSave, who }) 
     { key: "leave",      n: pendingLeave.length,     tone: "#8A6A00",
       one: "leave application to decide", many: "leave applications to decide",
       why: "Staff cannot plan until you answer" },
-    { key: "discipline", n: pendingDiscipline.length, tone: "#0E4A29",
+    { key: "discipline", n: pendingDiscipline.length, tone: "#0B5C2D",
       one: "discipline case to review", many: "discipline cases to review",
       why: "A teacher has reported an incident" },
     { key: "signins",    n: pendingArrivals.length,  tone: "#0A2E1A",
@@ -2278,7 +2277,7 @@ function AdminView({ roster, saveRoster, onExit, syncState, onForceSave, who }) 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {["KSh", "$", "£", "€"].map((c) => (
                   <button key={c} onClick={() => saveRoster({ ...roster, settings: { ...roster.settings, currency: c } }, "Currency updated")} style={{
-                    ...primaryBtn(), background: cur === c ? "#FFC400" : "#0A2E1A", color: cur === c ? "#073D22" : "#FFFFFF",
+                    ...primaryBtn(), background: cur === c ? "#FFC400" : "#0A2E1A", color: cur === c ? "#F3F5F4" : "#FFFFFF",
                   }}>{c}</button>
                 ))}
               </div>
@@ -2314,7 +2313,7 @@ function AdminOverview({ roster }) {
         <StatCard label="Fees collected" value={`${cur}${money(totalPaid)}`} tone="#0E7A3C" />
         <StatCard label="Fees outstanding" value={`${cur}${money(totalDue - totalPaid)}`} tone={totalDue - totalPaid > 0 ? "#C0261B" : "#0E7A3C"} />
         <StatCard label="Fees cleared" value={`${cleared}/${roster.students.length}`} />
-        <StatCard label="Awaiting approval" value={pendingApprovals} tone={pendingApprovals > 0 ? "#0E4A29" : "#0A2E1A"} />
+        <StatCard label="Awaiting approval" value={pendingApprovals} tone={pendingApprovals > 0 ? "#8A6A00" : "#0E7A3C"} />
       </div>
       {roster.students.length === 0 && (
         <p style={{ fontFamily: FONT.body, color: "#4A5A50", fontSize: 13, marginTop: 18 }}>
@@ -2705,7 +2704,7 @@ function ClassPicker({ roster, onPick }) {
   const TONE = {
     none:      { bg: "#F4F8F5", fg: "#5E6E64", edge: "#C6D2CA" },
     draft:     { bg: "#FFF6D6", fg: "#8A6A00", edge: "#F0D98A" },
-    submitted: { bg: "#EFF5F1", fg: "#0E4A29", edge: "#C6D2CA" },
+    submitted: { bg: "#EFF5F1", fg: "#FFFFFF", edge: "#C6D2CA" },
     approved:  { bg: "#E3F5E9", fg: "#0E7A3C", edge: "#A9DEBC" },
     returned:  { bg: "#FDE8E6", fg: "#C0261B", edge: "#F3C0BB" },
   };
@@ -2789,7 +2788,7 @@ function TeacherResults({ roster, saveRoster, teacher }) {
             {assignments.map((a) => {
               const rec = getMarksFor(roster, a.classId, DEFAULT_TERM);
               const st = statusOf(rec);
-              const tone = { draft: "#8A6A00", submitted: "#0E4A29", approved: "#0E7A3C", returned: "#C0261B" }[st] || "#5E6E64";
+              const tone = { draft: "#8A6A00", submitted: "#FFFFFF", approved: "#0E7A3C", returned: "#C0261B" }[st] || "#5E6E64";
               const count = roster.students.filter((s) => s.classId === a.classId).length;
               return (
                 <button key={a.classId} onClick={() => setPicked(a.classId)} style={{
@@ -3032,7 +3031,7 @@ function MarksEditor({ roster, saveRoster, classId, students, allowedSubjects, r
                 <button onClick={withdraw} style={{ ...primaryBtn(), background: "#8A6A00" }}>Withdraw &amp; edit</button>
               )}
               {role === "teacher" && (status === "draft" || status === "returned") && (
-                <button onClick={submit} style={{ ...primaryBtn(), background: "#0E4A29" }}>Send to admin for approval</button>
+                <button onClick={submit} style={{ ...primaryBtn(), background: "#FFFFFF" }}>Send to admin for approval</button>
               )}
               {role === "admin" && status === "submitted" && (
                 <>
@@ -3264,7 +3263,7 @@ function ParentView({ payload, onExit }) {
   const [term, setTerm] = useState(DEFAULT_TERM);
   const [printDoc, setPrintDoc] = useState(null);
   const [showWork, setShowWork] = useState(false);
-  if (!payload) return <div style={{ color: "#FFFFFF", padding: 30 }}>Session ended. <button onClick={onExit} style={backBtnStyle()}>go back</button></div>;
+  if (!payload) return <div style={{ color: "#0A2E1A", padding: 30 }}>Session ended. <button onClick={onExit} style={backBtnStyle()}>go back</button></div>;
 
   const student = payload.student;
   const settings = payload.settings || {};
@@ -3454,7 +3453,7 @@ function Approvals({ roster, saveRoster }) {
           const studentsIn = roster.students.filter((s) => s.classId === classId);
           const ranked = classPositions(rec.grid || {}, studentsIn, roster.subjects, weights);
           return (
-            <div key={classId + tKey} style={{ background: "#F4F8F5", border: "1px solid #C6D2CA", borderLeft: "4px solid #0E4A29", borderRadius: 5, padding: "12px 14px" }}>
+            <div key={classId + tKey} style={{ background: "#F4F8F5", border: "1px solid #C6D2CA", borderLeft: "4px solid #FFFFFF", borderRadius: 5, padding: "12px 14px" }}>
               <div style={{ fontFamily: FONT.display, fontSize: 15.5, fontWeight: 600, color: "#0A2E1A" }}>
                 {classNameOf(roster, classId)} — {tKey.replace(/_/g, " ")}
               </div>
@@ -3795,7 +3794,12 @@ function YearEnd({ roster, saveRoster }) {
             {(roster.archives || []).slice().reverse().map((a) => (
               <div key={a.year + a.savedAt} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 12px", background: "#F4F8F5", border: "1px solid #DCE6E0", borderRadius: 3, flexWrap: "wrap", gap: 8 }}>
                 <span style={{ fontFamily: FONT.body, fontSize: 13.5, color: "#0A2E1A" }}>
-                  {a.year} <span style={{ fontFamily: FONT.mono, fontSize: 11, color: "#5E6E64" }}>· saved {fmtDate(a.savedAt.slice(0, 10))}</span>
+                  {a.year}
+                  {a.savedAt && (
+                    <span style={{ fontFamily: FONT.mono, fontSize: 11, color: "#5E6E64" }}>
+                      {" "}· saved {fmtDate(String(a.savedAt).slice(0, 10))}
+                    </span>
+                  )}
                 </span>
                 <button onClick={() => restore(a)} style={{ background: "none", border: "none", color: "#0A2E1A", fontFamily: FONT.mono, fontSize: 11.5 }}>restore</button>
               </div>
@@ -4317,7 +4321,7 @@ function DisciplineReport({ roster, saveRoster, classId, actorName, role = "teac
   };
 
   const nameOf = (id) => roster.students.find((s) => s.id === id)?.name || "—";
-  const TONE = { submitted: "#0E4A29", reviewed: "#0E7A3C", dismissed: "#5E6E64" };
+  const TONE = { submitted: "#FFFFFF", reviewed: "#0E7A3C", dismissed: "#5E6E64" };
 
   return (
     <div>
@@ -4352,7 +4356,7 @@ function DisciplineReport({ roster, saveRoster, classId, actorName, role = "teac
               {DISCIPLINE_ACTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
             <button onClick={submit} disabled={!form.studentId || !form.category || !form.detail.trim()}
-              style={{ ...primaryBtn(), background: "#0E4A29" }}>Send to admin</button>
+              style={{ ...primaryBtn(), background: "#FFFFFF" }}>Send to admin</button>
           </div>
         </>
       )}
@@ -4376,7 +4380,8 @@ function DisciplineReport({ roster, saveRoster, classId, actorName, role = "teac
             </div>
             <div style={{ fontFamily: FONT.body, fontSize: 12.5, color: "#0A2E1A", marginTop: 5 }}>{d.detail}</div>
             <div style={{ fontFamily: FONT.mono, fontSize: 10.5, color: "#4A5A50", marginTop: 5 }}>
-              {classNameOf(roster, d.classId)} · by {d.byTeacher} · {fmtDate(d.ts.slice(0, 10))}
+              {classNameOf(roster, d.classId)} · by {d.byTeacher || "—"}
+              {(d.ts || d.date) && ` · ${fmtDate(String(d.ts || d.date).slice(0, 10))}`}
               {d.action ? ` · action: ${d.action}` : ""}
             </div>
             {d.adminNote && (
@@ -4622,7 +4627,7 @@ function CheckInApprovals({ roster, saveRoster }) {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px,1fr))", gap: 10, marginBottom: 16 }}>
-        <StatCard label="Awaiting you" value={pending} tone={pending ? "#0E4A29" : "#0A2E1A"} />
+        <StatCard label="Awaiting you" value={pending} tone={pending ? "#8A6A00" : "#0E7A3C"} />
         <StatCard label="Late today" value={lateCount} tone={lateCount ? "#C0261B" : "#0E7A3C"} />
         <StatCard label="Left early" value={earlyCount} tone={earlyCount ? "#C0261B" : "#0E7A3C"} />
         <StatCard label="Not signed in" value={absent} tone={absent ? "#8A6A00" : "#0E7A3C"} />
@@ -6338,7 +6343,7 @@ const LEAVE_KINDS = {
   annual:        { label: "Annual leave",        ink: "#0E7A3C", note: "Planned time off" },
   sick:          { label: "Sick leave",          ink: "#C0261B", note: "Illness or medical appointment" },
   emergency:     { label: "Emergency",           ink: "#8A6A00", note: "Something urgent and unforeseen" },
-  compassionate: { label: "Compassionate",       ink: "#0E4A29", note: "Bereavement or family crisis" },
+  compassionate: { label: "Compassionate",       ink: "#FFFFFF", note: "Bereavement or family crisis" },
   maternity:     { label: "Maternity",           ink: "#0A2E1A", note: "" },
   paternity:     { label: "Paternity",           ink: "#0A2E1A", note: "" },
   study:         { label: "Study leave",         ink: "#0A2E1A", note: "Course or examinations" },
@@ -6795,7 +6800,7 @@ function SpendReport({ roster, refreshKey }) {
   }
 
   const RANGES = [["month","This month"],["term","This term"],["year","This year"],["all","Everything"]];
-  const PALETTE = ["#0E7A3C","#8A6A00","#0A2E1A","#C0261B","#0E4A29","#0B5C2D","#8A6A2C","#0A2E1A"];
+  const PALETTE = ["#0E7A3C","#8A6A00","#0A2E1A","#C0261B","#FFFFFF","#0B5C2D","#8A6A2C","#0A2E1A"];
 
   return (
     <div>
@@ -7345,7 +7350,7 @@ function HolidayWork({ roster, teacher, classId }) {
                 <button onClick={() => setPrinting(w)} style={{ ...backBtnStyle(), color: "#0A2E1A" }}>print worksheet</button>
                 <button onClick={() => setEditing(w)} style={{ ...backBtnStyle(), color: "#0A2E1A" }}>edit</button>
                 <button onClick={() => setFilesFor(filesFor === w.id ? null : w.id)}
-                  style={{ ...primaryBtn(), padding: "6px 13px", fontSize: 12, background: "#0E4A29" }}>
+                  style={{ ...primaryBtn(), padding: "6px 13px", fontSize: 12, background: "#FFFFFF" }}>
                   {filesFor === w.id ? "Hide files" : "Attach files"}
                 </button>
               </div>
@@ -8161,7 +8166,7 @@ function FamilyUploadBack({ assignmentId, adm, pin, onSent }) {
         accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
         onChange={(e) => { send(e.target.files); e.target.value = ""; }} />
       <button onClick={() => ref.current?.click()} disabled={busy}
-        style={{ ...primaryBtn(), background: "#0E4A29", width: "100%",
+        style={{ ...primaryBtn(), background: "#FFFFFF", width: "100%",
                  opacity: busy ? 0.5 : 1, marginBottom: 8 }}>
         {busy ? "Sending the file…" : "Send a file instead"}
       </button>
@@ -9515,7 +9520,7 @@ function DayBook({ roster, onReceipt }) {
               <div style={{ background: "#0A2E1A", color: "#fff", padding: "8px 12px",
                     display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
                 <span style={{ fontFamily: FONT.display, fontSize: 13.5, fontWeight: 600 }}>{fmtDate(date)}</span>
-                <span style={{ fontFamily: FONT.mono, fontSize: 12, color: "#FFC400" }}>
+                <span style={{ fontFamily: FONT.mono, fontSize: 12, color: "#0B5C2D" }}>
                   {cur}{money(dayTotal)}
                 </span>
               </div>
@@ -9728,14 +9733,14 @@ function StudentIdCards({ roster, students, onBack, title }) {
   ].filter(Boolean).join(" | ");
 
   // Kenyan flag palette: black, red, white, green — with gold for the seal.
-  const KE = { black: "#0E4A29", red: "#C0261B", white: "#FFFFFF", green: "#0E7A3C", gold: "#FFC400" };
+  const KE = { black: "#FFFFFF", red: "#C0261B", white: "#FFFFFF", green: "#0E7A3C", gold: "#FFC400" };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#073D22" }}>
+    <div style={{ minHeight: "100vh", background: "#F3F5F4" }}>
       <div className="no-print" style={{ maxWidth: 820, margin: "0 auto", padding: "14px 12px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <button onClick={onBack} style={{ background: "transparent", border: "1px solid #155336", color: "#FFFFFF", borderRadius: 3, padding: "8px 14px", fontFamily: FONT.body, fontSize: 13 }}>← Back</button>
-        <button onClick={() => window.print()} style={{ ...primaryBtn(), background: "#FFC400", color: "#073D22" }}>Print cards</button>
-        <span style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#93A69A" }}>
+        <button onClick={onBack} style={{ background: "#FFFFFF", border: "1px solid #C6D2CA", color: "#0A2E1A", borderRadius: 4, padding: "8px 14px", fontFamily: FONT.body, fontSize: 13 }}>← Back</button>
+        <button onClick={() => window.print()} style={{ ...primaryBtn(), background: "#FFC400", color: "#0A2E1A" }}>Print cards</button>
+        <span style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#5E6E64" }}>
           {students.length} card{students.length === 1 ? "" : "s"} · {title}
         </span>
       </div>
@@ -9841,10 +9846,10 @@ function StudentIdCards({ roster, students, onBack, title }) {
         })}
       </div>
 
-      <div className="no-print" style={{ maxWidth: 820, margin: "0 auto", padding: "0 12px 50px", fontFamily: FONT.body, fontSize: 12, color: "#93A69A", lineHeight: 1.5 }}>
+      <div className="no-print" style={{ maxWidth: 820, margin: "0 auto", padding: "0 12px 50px", fontFamily: FONT.body, fontSize: 12, color: "#5E6E64", lineHeight: 1.5 }}>
         Print on card stock if you have it. Scanning a card shows the school, admission number, pupil's name,
         class and guardian.
-        <div style={{ marginTop: 6, color: "#FFC400" }}>
+        <div style={{ marginTop: 6, color: "#0B5C2D" }}>
           The parent PIN is deliberately <strong>not</strong> on the card — a lost card would otherwise give a
           stranger access to that child's records. PINs stay on the report card.
         </div>
@@ -10021,11 +10026,11 @@ function BulkReportCards({ roster, classId, term, onBack }) {
   const withResults = students.filter((s) => studentSummary(grid, s.id, roster.subjects, weights).count > 0);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#073D22" }}>
+    <div style={{ minHeight: "100vh", background: "#F3F5F4" }}>
       <div className="no-print" style={{ maxWidth: 760, margin: "0 auto", padding: "14px 12px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <button onClick={onBack} style={{ background: "transparent", border: "1px solid #155336", color: "#FFFFFF", borderRadius: 3, padding: "8px 14px", fontFamily: FONT.body, fontSize: 13 }}>← Back</button>
-        <button onClick={() => window.print()} style={{ ...primaryBtn(), background: "#FFC400", color: "#073D22" }}>Print all / Save as PDF</button>
-        <span style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#93A69A" }}>
+        <button onClick={onBack} style={{ background: "#FFFFFF", border: "1px solid #C6D2CA", color: "#0A2E1A", borderRadius: 4, padding: "8px 14px", fontFamily: FONT.body, fontSize: 13 }}>← Back</button>
+        <button onClick={() => window.print()} style={{ ...primaryBtn(), background: "#FFC400", color: "#0A2E1A" }}>Print all / Save as PDF</button>
+        <span style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#5E6E64" }}>
           {withResults.length} report card{withResults.length === 1 ? "" : "s"} · {classNameOf(roster, classId)} · {term}
         </span>
       </div>
@@ -10169,7 +10174,7 @@ function BulkReportCards({ roster, classId, term, onBack }) {
         );
       })}
 
-      <div className="no-print" style={{ maxWidth: 760, margin: "0 auto", padding: "0 12px 50px", fontFamily: FONT.body, fontSize: 12, color: "#93A69A", lineHeight: 1.5 }}>
+      <div className="no-print" style={{ maxWidth: 760, margin: "0 auto", padding: "0 12px 50px", fontFamily: FONT.body, fontSize: 12, color: "#5E6E64", lineHeight: 1.5 }}>
         Each report card prints on its own page. If the Print button does not respond, use your browser menu (⋮ → Print).
       </div>
     </div>
@@ -10370,18 +10375,18 @@ function amountInWords(n) {
 
 function DocShell({ title, onBack, children }) {
   return (
-    <div style={{ minHeight: "100vh", background: "#073D22" }}>
+    <div style={{ minHeight: "100vh", background: "#F3F5F4" }}>
       <div className="no-print" style={{ maxWidth: 720, margin: "0 auto", padding: "14px 12px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <button onClick={onBack} style={{ background: "transparent", border: "1px solid #155336", color: "#FFFFFF", borderRadius: 3, padding: "8px 14px", fontFamily: FONT.body, fontSize: 13 }}>← Back</button>
-        <button onClick={() => window.print()} style={{ ...primaryBtn(), background: "#FFC400", color: "#073D22" }}>Print / Save as PDF</button>
-        <span style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#93A69A" }}>{title}</span>
+        <button onClick={onBack} style={{ background: "#FFFFFF", border: "1px solid #C6D2CA", color: "#0A2E1A", borderRadius: 4, padding: "8px 14px", fontFamily: FONT.body, fontSize: 13 }}>← Back</button>
+        <button onClick={() => window.print()} style={{ ...primaryBtn(), background: "#FFC400", color: "#0A2E1A" }}>Print / Save as PDF</button>
+        <span style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#5E6E64" }}>{title}</span>
       </div>
       <div className="print-doc" style={{
         maxWidth: 720, margin: "0 auto 24px", background: "#fff", color: "#0A2E1A",
         border: "1px solid #C6D2CA", borderRadius: 4, padding: "30px 32px",
         boxShadow: "0 8px 24px rgba(0,0,0,0.18)", fontFamily: "Georgia, 'Times New Roman', serif",
       }}>{children}</div>
-      <div className="no-print" style={{ maxWidth: 720, margin: "0 auto", padding: "0 12px 50px", fontFamily: FONT.body, fontSize: 12, color: "#93A69A", lineHeight: 1.5 }}>
+      <div className="no-print" style={{ maxWidth: 720, margin: "0 auto", padding: "0 12px 50px", fontFamily: FONT.body, fontSize: 12, color: "#5E6E64", lineHeight: 1.5 }}>
         If the Print button doesn't respond, use your browser menu (⋮ → Print or Share → Print), or screenshot the document above.
       </div>
     </div>
