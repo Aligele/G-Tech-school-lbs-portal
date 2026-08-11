@@ -86,7 +86,7 @@ const STATUS = {
   late: { label: "Late", ink: "#8A6A00", mark: "L" },
 };
 
-const APP_VERSION = "v50 · white + full registration";
+const APP_VERSION = "v51 · card scanner";
 
 // Keeps the last 400 actions so the school can see who changed what.
 const logAction = (roster, actor, action) => {
@@ -1662,6 +1662,7 @@ function AdminView({ roster, saveRoster, onExit, syncState, onForceSave, who }) 
       { key: "discipline", label: "Discipline cases", icon: "approvals", badge: pendingDiscipline.length },
       { key: "photos", label: "Pupil photos", icon: "students" },
       { key: "idcards", label: "Student ID cards", icon: "logins" },
+      { key: "scan", label: "Scan a card", icon: "logins" },
       { key: "signins", label: "Arrival sign-ins", icon: "duty", badge: pendingArrivals.length },
       { key: "teachers", label: "Teachers", icon: "teachers" },
       { key: "logins", label: "Staff logins", icon: "logins" },
@@ -1861,6 +1862,8 @@ function AdminView({ roster, saveRoster, onExit, syncState, onForceSave, who }) 
           {tab === "photos" && <PhotoManager roster={roster} classId={null} />}
 
           {tab === "idcards" && <IdCardDashboard roster={roster} />}
+
+          {tab === "scan" && <ScanCard roster={roster} onBack={() => setTab("idcards")} />}
 
           {tab === "classes" && (
             <div>
@@ -3269,7 +3272,7 @@ function TeacherView({ roster, saveRoster, teacherId, onExit, who }) {
         section={{ memos: "Memos", leave: "Leave", signin: "Sign in", attendance: "Pupil attendance", results: "Exam results",
                    reportcards: "Report cards", timetable: "My timetable",
                    register: "Register a pupil", photos: "Pupil photos", examtt: "Exam timetable",
-                   holiday: "Holiday work", mypassword: "My password",
+                   holiday: "Holiday work", mypassword: "My password", scan: "Scan a card", scan: "Scan a card",
                    discipline: "Discipline report" }[tab] || tab}
         onMenu={() => setMenuOpen(true)} onExit={onExit} />
       <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} active={tab} onPick={setTab}
@@ -3292,6 +3295,7 @@ function TeacherView({ roster, saveRoster, teacherId, onExit, who }) {
           { title: "MY CLASS", items: [
             { key: "register", label: "Register a pupil", icon: "students" },
             { key: "photos", label: "Pupil photos", icon: "logins" },
+            { key: "scan", label: "Scan a card", icon: "logins" },
             { key: "discipline", label: "Discipline report", icon: "approvals" },
           ]},
         ]} />
@@ -3326,6 +3330,8 @@ function TeacherView({ roster, saveRoster, teacherId, onExit, who }) {
           {tab === "register" && <TeacherAddStudent roster={roster} saveRoster={saveRoster} classId={classId} actorName={teacher.name} />}
 
           {tab === "photos" && <PhotoManager roster={roster} classId={classId} />}
+
+          {tab === "scan" && <ScanCard roster={roster} onBack={() => setTab("memos")} />}
 
           {tab === "discipline" && <DisciplineReport roster={roster} saveRoster={saveRoster} classId={classId} actorName={teacher.name} role="teacher" />}
 
@@ -9437,6 +9443,185 @@ function ImportMapping({ spec, headers, map, setMap, hasHeader, setHasHeader,
   );
 }
 
+
+// ---------- Scanning a pupil's card ----------
+// The cards carried a code but nothing read it, which made them decoration.
+// This uses the camera through the browser's own barcode reader — no library,
+// no upload, nothing leaves the phone.
+function ScanCard({ roster, onFound, onBack }) {
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const [state, setState] = useState("starting");   // starting | scanning | unsupported | denied | error
+  const [msg, setMsg] = useState("");
+  const [last, setLast] = useState(null);
+  const [manual, setManual] = useState("");
+
+  // What a scanned code means. The card holds the admission number, so that is
+  // what is looked up — the rest of the code is for a human reading it.
+  const admFrom = (text) => {
+    const m = String(text || "").match(/ADM:([^|]+)/i);
+    return (m ? m[1] : String(text || "")).trim();
+  };
+
+  const lookup = (text) => {
+    const adm = admFrom(text);
+    const st = roster.students.find((s) => String(s.id).toLowerCase() === adm.toLowerCase());
+    if (st) { setLast({ ok: true, student: st }); onFound?.(st); }
+    else setLast({ ok: false, adm });
+  };
+
+  useEffect(() => {
+    let stop = false;
+    let detector = null;
+
+    const run = async () => {
+      if (!("BarcodeDetector" in window)) { setState("unsupported"); return; }
+      try {
+        const kinds = await window.BarcodeDetector.getSupportedFormats();
+        if (!kinds.includes("qr_code")) { setState("unsupported"); return; }
+        detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+      } catch (e) { setState("unsupported"); return; }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" }, audio: false,
+        });
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+        setState("scanning");
+      } catch (e) {
+        setState(e?.name === "NotAllowedError" ? "denied" : "error");
+        setMsg(String(e?.message || e));
+        return;
+      }
+
+      const tick = async () => {
+        if (stop || !videoRef.current) return;
+        try {
+          const found = await detector.detect(videoRef.current);
+          if (found.length) {
+            lookup(found[0].rawValue);
+            // a short pause, so one card does not fire a dozen times
+            setTimeout(() => { if (!stop) requestAnimationFrame(tick); }, 1400);
+            return;
+          }
+        } catch (e) { /* a dropped frame is not worth reporting */ }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    };
+
+    run();
+    return () => {
+      stop = true;
+      streamRef.current?.getTracks?.().forEach((t) => t.stop());
+    };
+  }, []);
+
+  return (
+    <div>
+      <button onClick={onBack} style={{ ...backBtnStyle(), marginBottom: 12 }}>← back</button>
+      <SectionTitle>Scan a pupil's card</SectionTitle>
+
+      {state === "starting" && (
+        <div style={{ fontFamily: FONT.body, fontSize: 13, color: "#4A5A50" }}>Opening the camera…</div>
+      )}
+
+      {state === "unsupported" && (
+        <div style={{ padding: "13px 15px", borderRadius: 5, background: "#FFF6D6",
+              border: "1px solid #F0D98A", borderLeft: "4px solid #FFC400",
+              fontFamily: FONT.body, fontSize: 13, color: "#0A2E1A", lineHeight: 1.6, marginBottom: 16 }}>
+          <strong>This browser cannot read codes.</strong>
+          <div style={{ marginTop: 5 }}>
+            Chrome on Android can. On an iPhone, open the phone's own Camera app and point it at the
+            card — it will read the code and show the pupil's details as text. Or type the admission
+            number below.
+          </div>
+        </div>
+      )}
+
+      {state === "denied" && (
+        <div style={{ padding: "13px 15px", borderRadius: 5, background: "#FDE8E6",
+              border: "1px solid #F3C0BB", borderLeft: "4px solid #C0261B",
+              fontFamily: FONT.body, fontSize: 13, color: "#0A2E1A", lineHeight: 1.6, marginBottom: 16 }}>
+          <strong>The camera was not allowed.</strong>
+          <div style={{ marginTop: 5 }}>
+            Tap the padlock beside the address and allow the camera, then open this screen again.
+          </div>
+        </div>
+      )}
+
+      {state === "error" && (
+        <div style={{ padding: "13px 15px", borderRadius: 5, background: "#FDE8E6",
+              border: "1px solid #F3C0BB", fontFamily: FONT.body, fontSize: 12.5,
+              color: "#C0261B", marginBottom: 16 }}>{msg}</div>
+      )}
+
+      <div style={{ position: "relative", maxWidth: 420, marginBottom: 14,
+            display: state === "scanning" ? "block" : "none" }}>
+        <video ref={videoRef} playsInline muted
+          style={{ width: "100%", borderRadius: 8, background: "#000", display: "block" }} />
+        {/* a frame to aim with */}
+        <div style={{ position: "absolute", inset: "18%", border: "3px solid #FFC400",
+              borderRadius: 10, pointerEvents: "none" }} />
+      </div>
+
+      {state === "scanning" && (
+        <div style={{ fontFamily: FONT.body, fontSize: 12, color: "#4A5A50",
+              marginBottom: 16, lineHeight: 1.55, maxWidth: 420 }}>
+          Hold the card inside the yellow frame. In poor light, move under a window — the code needs
+          to be sharp, not bright.
+        </div>
+      )}
+
+      {last && (
+        <div className="enter" style={{ padding: "13px 15px", borderRadius: 5, marginBottom: 16,
+              background: last.ok ? "#E3F5E9" : "#FDE8E6",
+              border: `1px solid ${last.ok ? "#A9DEBC" : "#F3C0BB"}`,
+              borderLeft: `4px solid ${last.ok ? "#0E7A3C" : "#C0261B"}` }}>
+          {last.ok ? (
+            <>
+              <div style={{ fontFamily: FONT.display, fontSize: 16, fontWeight: 700, color: "#0A2E1A" }}>
+                {last.student.name}
+              </div>
+              <div style={{ fontFamily: FONT.mono, fontSize: 11.5, color: "#4A5A50", marginTop: 3 }}>
+                {last.student.id} · {classNameOf(roster, last.student.classId)}
+                {last.student.parentName ? ` · ${last.student.parentName}` : ""}
+              </div>
+            </>
+          ) : (
+            <div style={{ fontFamily: FONT.body, fontSize: 13, color: "#0A2E1A" }}>
+              <strong>No pupil here with admission number {last.adm}.</strong>
+              <div style={{ marginTop: 4, fontSize: 12, color: "#4A5A50" }}>
+                The card may belong to another school, or the pupil may have left.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ maxWidth: 420 }}>
+        <div style={{ fontFamily: FONT.body, fontSize: 12.5, fontWeight: 600,
+              color: "#0A2E1A", marginBottom: 5 }}>Or type the admission number</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input value={manual} onChange={(e) => setManual(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && manual.trim() && lookup(manual)}
+            placeholder="e.g. STU/2026/001"
+            style={{ ...darkInput(), flex: 1, minWidth: 170, fontFamily: FONT.mono }} />
+          <button onClick={() => manual.trim() && lookup(manual)} style={primaryBtn()}>Find</button>
+        </div>
+        <div style={{ fontFamily: FONT.body, fontSize: 11, color: "#5E6E64",
+              marginTop: 6, lineHeight: 1.5 }}>
+          A card can be lost or a camera can fail. Typing the number does the same thing.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ---------- Finance portal ----------
 function FinanceView({ roster, saveRoster, who, onExit, syncState, onForceSave }) {
   const [tab, setTab] = useState("collect");
@@ -9886,7 +10071,11 @@ function StudentIdCards({ roster, students, onBack, title }) {
   ].filter(Boolean).join(" | ");
 
   // Kenyan flag palette: black, red, white, green — with gold for the seal.
-  const KE = { black: "#FFFFFF", red: "#C0261B", white: "#FFFFFF", green: "#0E7A3C", gold: "#FFC400" };
+  //
+  // These stay literal. An ID card is printed and scanned, not read on a
+  // screen, so it does not follow the app's theme — and a QR code drawn in
+  // anything but true black on true white will not scan reliably.
+  const KE = { black: "#111111", red: "#C0261B", white: "#FFFFFF", green: "#0E7A3C", gold: "#C9A227" };
 
   return (
     <div style={{ minHeight: "100vh", background: "#F3F5F4" }}>
