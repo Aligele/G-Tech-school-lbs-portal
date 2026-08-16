@@ -86,7 +86,7 @@ const STATUS = {
   late: { label: "Late", ink: "#8A6A00", mark: "L" },
 };
 
-const APP_VERSION = "v51 · card scanner";
+const APP_VERSION = "v52 · printed register";
 
 // Keeps the last 400 actions so the school can see who changed what.
 const logAction = (roster, actor, action) => {
@@ -1585,6 +1585,7 @@ function AdminView({ roster, saveRoster, onExit, syncState, onForceSave, who }) 
   });
   const [showTeacherMore, setShowTeacherMore] = useState(false);
   const BLANK_STUDENT = {
+    admNo: "",                             // blank means "give it the next one"
     firstName: "", middleName: "", surname: "", classId: "",
     sex: "", dob: "", birthCertNo: "", nationality: "Kenyan", assessmentNo: "",
     county: "", subCounty: "", ward: "", homeArea: "",
@@ -1664,6 +1665,7 @@ function AdminView({ roster, saveRoster, onExit, syncState, onForceSave, who }) 
       { key: "idcards", label: "Student ID cards", icon: "logins" },
       { key: "scan", label: "Scan a card", icon: "logins" },
       { key: "signins", label: "Arrival sign-ins", icon: "duty", badge: pendingArrivals.length },
+      { key: "printreg", label: "Print the register", icon: "reports" },
       { key: "teachers", label: "Teachers", icon: "teachers" },
       { key: "logins", label: "Staff logins", icon: "logins" },
       { key: "staff", label: "Staff attendance", icon: "staff" },
@@ -1736,8 +1738,21 @@ function AdminView({ roster, saveRoster, onExit, syncState, onForceSave, who }) 
       .map((x) => x.trim()).filter(Boolean).join(" ");
     const keep = (v) => { const t = String(v ?? "").trim(); return t === "" ? undefined : t; };
 
+    // A school that already numbers its pupils keeps its own numbers; one that
+    // does not gets the next in sequence. Either way the number is what every
+    // mark, receipt and parent PIN hangs from, so it must be right.
+    const typed = String(n.admNo || "").trim();
+    if (typed && roster.students.some((x) => String(x.id).toLowerCase() === typed.toLowerCase())) {
+      const owner = roster.students.find((x) => String(x.id).toLowerCase() === typed.toLowerCase());
+      window.alert(`Admission number ${typed} already belongs to ${owner.name}.`);
+      // Clear it, so the next pupil is not accidentally given the same number
+      // again by a clerk who taps straight past the warning.
+      setNewStudent({ ...n, admNo: "" });
+      return;
+    }
+
     const s = {
-      id: nextAdmissionNo(roster.students),
+      id: typed || nextAdmissionNo(roster.students),
       name: display,                       // kept so every existing screen works
       firstName: n.firstName.trim(),
       middleName: keep(n.middleName),
@@ -1858,6 +1873,8 @@ function AdminView({ roster, saveRoster, onExit, syncState, onForceSave, who }) 
           {tab === "discipline" && <DisciplineReport roster={roster} saveRoster={saveRoster} classId={null} actorName="Admin" role="admin" />}
 
           {tab === "signins" && <CheckInApprovals roster={roster} saveRoster={saveRoster} />}
+
+          {tab === "printreg" && <AdminRegister roster={roster} />}
 
           {tab === "photos" && <PhotoManager roster={roster} classId={null} />}
 
@@ -2026,6 +2043,13 @@ function AdminView({ roster, saveRoster, onExit, syncState, onForceSave, who }) 
 
                 <FormCard title="The pupil">
                   <FormRow>
+                    <Field label="Admission number"
+                      hint={`Leave blank and the school gives it ${nextAdmissionNo(roster.students)}`}>
+                      <input value={newStudent.admNo}
+                        onChange={(e) => setNewStudent({ ...newStudent, admNo: e.target.value })}
+                        placeholder={nextAdmissionNo(roster.students)}
+                        style={{ ...darkInput(), width: "100%", fontFamily: FONT.mono }} />
+                    </Field>
                     <Field label="First name" required>
                       <input value={newStudent.firstName}
                         onChange={(e) => setNewStudent({ ...newStudent, firstName: e.target.value })}
@@ -3216,6 +3240,7 @@ function MarksEditor({ roster, saveRoster, classId, students, allowedSubjects, r
 function TeacherView({ roster, saveRoster, teacherId, onExit, who }) {
   const teacher = roster.teachers.find((t) => t.id === teacherId);
   const [tab, setTab] = useState("attendance");
+  const [regFor, setRegFor] = useState(null);   // which register is being printed
 
   // The school's data arrives after this screen mounts, so the check for
   // unread memos has to wait for it. Done once, so a teacher who deliberately
@@ -3272,7 +3297,8 @@ function TeacherView({ roster, saveRoster, teacherId, onExit, who }) {
         section={{ memos: "Memos", leave: "Leave", signin: "Sign in", attendance: "Pupil attendance", results: "Exam results",
                    reportcards: "Report cards", timetable: "My timetable",
                    register: "Register a pupil", photos: "Pupil photos", examtt: "Exam timetable",
-                   holiday: "Holiday work", mypassword: "My password", scan: "Scan a card", scan: "Scan a card",
+                   holiday: "Holiday work", mypassword: "My password", scan: "Scan a card",
+                   printreg: "Print the register", scan: "Scan a card",
                    discipline: "Discipline report" }[tab] || tab}
         onMenu={() => setMenuOpen(true)} onExit={onExit} />
       <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} active={tab} onPick={setTab}
@@ -3284,6 +3310,7 @@ function TeacherView({ roster, saveRoster, teacherId, onExit, who }) {
             { key: "mypassword", label: "My password", icon: "logins" },
             { key: "signin", label: "Sign in (arrival)", icon: "duty" },
             { key: "attendance", label: "Pupil attendance", icon: "attendance" },
+            { key: "printreg", label: "Print the register", icon: "reports" },
           ]},
           { title: "ACADEMICS", items: [
             { key: "results", label: "Exam results", icon: "marks" },
@@ -3310,6 +3337,14 @@ function TeacherView({ roster, saveRoster, teacherId, onExit, who }) {
           </button>
         )}
         <div style={{ ...paperPanel(), padding: 22 }} className="chalk-fade paper-panel">
+          {tab === "printreg" && (
+            regFor
+              ? <AttendanceRegisterDoc roster={roster} classId={classId}
+                  mode={regFor.mode} from={regFor.from} to={regFor.to}
+                  onBack={() => setRegFor(null)} />
+              : <RegisterPicker roster={roster} classId={classId} onPrint={setRegFor} />
+          )}
+
           {tab === "attendance" && (
             <GeoGate action="attendance" label="Marking the register">
               <TeacherAttendance roster={roster} saveRoster={saveRoster} classId={classId} students={students} />
@@ -9618,6 +9653,253 @@ function ScanCard({ roster, onFound, onBack }) {
           A card can be lost or a camera can fail. Typing the number does the same thing.
         </div>
       </div>
+    </div>
+  );
+}
+
+
+// ---------- The printed register ----------
+// A class list on paper. Two kinds, because a teacher needs different things
+// on different days: today's marks already filled in, or an empty grid to
+// carry when the phone is flat or the network is down.
+function AttendanceRegisterDoc({ roster, classId, mode, from, to, onBack }) {
+  const pupils = roster.students
+    .filter((s) => s.classId === classId)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  // the school days in the range, weekends left out
+  const days = (() => {
+    const out = [];
+    const a = new Date(from), b = new Date(to);
+    for (let d = new Date(a); d <= b && out.length < 31; d.setDate(d.getDate() + 1)) {
+      const wd = d.getDay();
+      if (wd === 0 || wd === 6) continue;          // Sunday, Saturday
+      out.push(new Date(d).toISOString().slice(0, 10));
+    }
+    return out;
+  })();
+
+  const att = roster.attendance?.[classId] || {};
+  const markOf = (iso, id) => {
+    const rec = att[iso]?.[id];
+    if (!rec) return "";
+    const v = typeof rec === "string" ? rec : rec.status;
+    return v === "present" ? "P" : v === "absent" ? "A" : v === "late" ? "L" : "";
+  };
+
+  // a running total per pupil, which is the figure a head teacher asks for
+  const tally = (id) => {
+    let p = 0, a = 0, l = 0;
+    days.forEach((iso) => {
+      const m = markOf(iso, id);
+      if (m === "P") p++; else if (m === "A") a++; else if (m === "L") l++;
+    });
+    return { p, a, l };
+  };
+
+  const blank = mode === "blank";
+  const cellW = days.length > 15 ? 13 : days.length > 10 ? 17 : 21;
+
+  return (
+    <DocShell title="Class register" onBack={onBack}>
+      <DocHeader subtitle={blank ? "Class Register — to fill in by hand" : "Class Register"} />
+
+      <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap",
+            gap: 8, marginBottom: 12, fontSize: 12 }}>
+        <div><strong>Class:</strong> {classNameOf(roster, classId)}</div>
+        <div><strong>From:</strong> {fmtDate(from)} <strong>to</strong> {fmtDate(to)}</div>
+        <div><strong>On roll:</strong> {pupils.length}</div>
+      </div>
+
+      {pupils.length === 0 ? (
+        <div style={{ padding: "18px 14px", border: "1px dashed #B9C7BF", borderRadius: 4,
+              background: "#F4F8F5", textAlign: "center", fontSize: 12.5, color: "#4A5A50" }}>
+          No pupils in this class.
+        </div>
+      ) : (
+        <table style={{ borderCollapse: "collapse", width: "100%", marginBottom: 14 }}>
+          <thead>
+            <tr>
+              <th style={{ ...docTh, width: 20 }}>#</th>
+              <th style={docTh}>Pupil</th>
+              <th style={{ ...docTh, width: 60 }}>Adm No</th>
+              {days.map((iso) => (
+                <th key={iso} style={{ ...docTh, width: cellW, textAlign: "center", padding: "4px 1px",
+                      fontSize: 7.5, lineHeight: 1.15 }}>
+                  {new Date(iso).toLocaleDateString(undefined, { weekday: "narrow" })}
+                  <div style={{ fontWeight: 400 }}>{iso.slice(8)}</div>
+                </th>
+              ))}
+              {!blank && <th style={{ ...docTh, width: 46, textAlign: "center" }}>P / A / L</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {pupils.map((s, i) => {
+              const t = blank ? null : tally(s.id);
+              return (
+                <tr key={s.id}>
+                  <td style={{ ...docTd, fontFamily: FONT.mono, fontSize: 9, color: "#5E6E64" }}>{i + 1}</td>
+                  <td style={{ ...docTd, fontSize: 11, fontWeight: 600 }}>{s.name}</td>
+                  <td style={{ ...docTd, fontFamily: FONT.mono, fontSize: 9 }}>{s.id}</td>
+                  {days.map((iso) => {
+                    const m = blank ? "" : markOf(iso, s.id);
+                    return (
+                      <td key={iso} style={{ ...docTd, textAlign: "center", padding: "5px 1px",
+                            fontFamily: FONT.mono, fontSize: 9.5, fontWeight: 700,
+                            color: m === "A" ? "#C0261B" : m === "L" ? "#8A6A00" : "#0A2E1A" }}>
+                        {m}
+                      </td>
+                    );
+                  })}
+                  {!blank && (
+                    <td style={{ ...docTd, textAlign: "center", fontFamily: FONT.mono, fontSize: 9 }}>
+                      {t.p}/{t.a}/{t.l}
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+
+      <div style={{ fontSize: 10, color: "#4A5A50", lineHeight: 1.5, marginBottom: 18 }}>
+        <strong>P</strong> present &nbsp;·&nbsp; <strong>A</strong> absent &nbsp;·&nbsp;
+        <strong>L</strong> late.
+        {blank
+          ? " Fill this in by hand when the phone is flat or there is no network, then enter it in the portal afterwards."
+          : " Taken from the portal. A blank cell means the register was not marked that day."}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 40, marginTop: 16 }}>
+        <div style={docSig}>Class Teacher</div>
+        <div style={docSig}>Head Teacher</div>
+      </div>
+    </DocShell>
+  );
+}
+
+// Choosing what to print.
+function RegisterPicker({ roster, classId, onPrint }) {
+  const monthStart = () => { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10); };
+  const [from, setFrom] = useState(monthStart());
+  const [to, setTo] = useState(todayISO());
+  const [mode, setMode] = useState("filled");
+
+  const weekStart = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));    // back to Monday
+    return d.toISOString().slice(0, 10);
+  };
+
+  return (
+    <div>
+      <SectionTitle>Print the register</SectionTitle>
+      <div style={{ fontFamily: FONT.body, fontSize: 12.5, color: "#4A5A50",
+            marginBottom: 14, lineHeight: 1.6 }}>
+        A class list on paper — either with the marks already filled in, or empty to carry when the
+        phone is flat.
+      </div>
+
+      <div style={{ display: "grid", gap: 7, marginBottom: 16 }}>
+        {[["filled", "With the marks filled in", "What the portal has recorded, with a P/A/L total per pupil"],
+          ["blank", "Empty, to fill in by hand", "For a day with no phone or no network — enter it afterwards"]]
+          .map(([k, label, why]) => {
+          const on = mode === k;
+          return (
+            <button key={k} onClick={() => setMode(k)} className="lift"
+              style={{ display: "flex", alignItems: "center", gap: 11, textAlign: "left",
+                padding: "11px 13px", borderRadius: 5, cursor: "pointer",
+                background: on ? "#E3F5E9" : "#FFFFFF",
+                border: `1px solid ${on ? "#0E7A3C" : "#DCE6E0"}` }}>
+              <span style={{ width: 17, height: 17, borderRadius: "50%", flex: "0 0 17px",
+                border: `1.5px solid ${on ? "#0E7A3C" : "#B9C7BF"}`,
+                background: on ? "#0E7A3C" : "transparent", color: "#fff",
+                fontSize: 11, lineHeight: "15px", textAlign: "center" }}>{on ? "✓" : ""}</span>
+              <span>
+                <span style={{ fontFamily: FONT.body, fontSize: 13.5, fontWeight: 700,
+                      color: "#0A2E1A" }}>{label}</span>
+                <div style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#4A5A50",
+                      marginTop: 2 }}>{why}</div>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 10 }}>
+        <label style={{ display: "block" }}>
+          <div style={{ fontFamily: FONT.body, fontSize: 12.5, fontWeight: 600,
+                color: "#0A2E1A", marginBottom: 5 }}>From</div>
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
+            style={{ ...darkInput(), minWidth: 150 }} />
+        </label>
+        <label style={{ display: "block" }}>
+          <div style={{ fontFamily: FONT.body, fontSize: 12.5, fontWeight: 600,
+                color: "#0A2E1A", marginBottom: 5 }}>To</div>
+          <input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)}
+            style={{ ...darkInput(), minWidth: 150 }} />
+        </label>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+        <button onClick={() => { setFrom(weekStart()); setTo(todayISO()); }}
+          style={{ ...backBtnStyle() }}>this week</button>
+        <button onClick={() => { setFrom(monthStart()); setTo(todayISO()); }}
+          style={{ ...backBtnStyle() }}>this month</button>
+      </div>
+
+      <button onClick={() => onPrint({ mode, from, to })} style={{ ...primaryBtn(), fontSize: 14.5, padding: "11px 20px" }}>
+        Open the register
+      </button>
+      <div style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#4A5A50",
+            marginTop: 9, lineHeight: 1.55 }}>
+        Weekends are left out. A month of school days fits across one sheet in landscape — choose
+        landscape in the print dialogue.
+      </div>
+    </div>
+  );
+}
+
+
+// The head teacher prints any class, so the class is chosen first.
+function AdminRegister({ roster }) {
+  const [classId, setClassId] = useState("");
+  const [regFor, setRegFor] = useState(null);
+
+  if (regFor) {
+    return <AttendanceRegisterDoc roster={roster} classId={classId}
+             mode={regFor.mode} from={regFor.from} to={regFor.to}
+             onBack={() => setRegFor(null)} />;
+  }
+  if (!classId) {
+    return (
+      <div>
+        <SectionTitle>Print the register</SectionTitle>
+        <div style={{ fontFamily: FONT.body, fontSize: 12.5, color: "#4A5A50", marginBottom: 14 }}>
+          Choose a class.
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 9 }}>
+          {roster.classes.map((c) => (
+            <button key={c.id} onClick={() => setClassId(c.id)} className="lift"
+              style={{ textAlign: "left", padding: "13px 14px", borderRadius: 6, cursor: "pointer",
+                background: "#fff", border: "1px solid #DCE6E0", borderLeft: "4px solid #0E7A3C" }}>
+              <div style={{ fontFamily: FONT.display, fontSize: 15.5, fontWeight: 700, color: "#0A2E1A" }}>{c.name}</div>
+              <div style={{ fontFamily: FONT.mono, fontSize: 10, color: "#5E6E64", marginTop: 3 }}>
+                {roster.students.filter((s) => s.classId === c.id).length} pupils
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <button onClick={() => setClassId("")} style={{ ...backBtnStyle(), marginBottom: 12 }}>
+        ← all classes
+      </button>
+      <RegisterPicker roster={roster} classId={classId} onPrint={setRegFor} />
     </div>
   );
 }
