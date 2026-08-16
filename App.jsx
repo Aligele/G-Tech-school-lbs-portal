@@ -86,7 +86,7 @@ const STATUS = {
   late: { label: "Late", ink: "#8A6A00", mark: "L" },
 };
 
-const APP_VERSION = "v52 · printed register";
+const APP_VERSION = "v53 · a menu you can see";
 
 // Keeps the last 400 actions so the school can see who changed what.
 const logAction = (roster, actor, action) => {
@@ -1485,9 +1485,16 @@ const ICONS = {
 
 // Grouped navigation drawer, in the style of a university student portal.
 function Sidebar({ open, onClose, groups, active, onPick, heading, subheading }) {
-  // On a laptop the menu closes as soon as something is chosen, same as a
-  // phone — but the wider page means the chosen screen is not then hidden
-  // behind it, which is the reason the overlay felt heavy on desktop.
+  // Thirty-one items in one scroll is a wall. Each heading now opens and
+  // closes, and only one stays open at a time — so the menu is a short list of
+  // six topics until you choose one. The group holding the current screen
+  // opens itself, so you always land where you already are.
+  const groupOf = (key) => groups.find((g) => g.items.some((i) => i.key === key))?.title;
+  const [openGroup, setOpenGroup] = useState(groupOf(active) || groups[0]?.title);
+
+  // following a link from elsewhere in the app should open the right group
+  useEffect(() => { const g = groupOf(active); if (g) setOpenGroup(g); }, [active]);
+
   return (
     <>
       <div onClick={onClose} className="no-print" style={{
@@ -1496,7 +1503,7 @@ function Sidebar({ open, onClose, groups, active, onPick, heading, subheading })
       }} />
       <nav className="no-print" style={{
         position: "fixed", top: 0, left: 0, bottom: 0, width: 268, maxWidth: "84vw", zIndex: 201,
-        background: "#FFFFFF", borderRight: "1px solid #DCE6E0", boxShadow: "2px 0 16px rgba(0,0,0,0.08)",
+        background: "#FFFFFF", borderRight: "1px solid #DCE6E0",
         transform: open ? "translateX(0)" : "translateX(-102%)", transition: "transform .24s cubic-bezier(.2,.7,.3,1)",
         overflowY: "auto", boxShadow: open ? "6px 0 24px rgba(0,0,0,0.35)" : "none",
       }}>
@@ -1508,33 +1515,61 @@ function Sidebar({ open, onClose, groups, active, onPick, heading, subheading })
           </div>
         </div>
 
-        <div style={{ padding: "10px 0 26px" }}>
-          {groups.map((g) => (
-            <div key={g.title} style={{ marginBottom: 6 }}>
-              <div style={{ fontFamily: FONT.mono, fontSize: 9.5, letterSpacing: 1.4, color: "#5E6E64", padding: "14px 18px 6px" }}>
-                {g.title}
-              </div>
-              {g.items.map((it) => {
-                const on = active === it.key;
-                return (
-                  <button key={it.key} onClick={() => { onPick(it.key); onClose(); }} style={{
-                    display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left",
-                    padding: "11px 18px", border: "none", background: on ? "#E3F5E9" : "transparent",
-                    borderLeft: `3px solid ${on ? "#0E7A3C" : "transparent"}`,
-                    color: on ? "#0B5C2D" : "#4A5A50", fontFamily: FONT.body, fontSize: 13.5,
-                    fontWeight: on ? 600 : 400,
+        <div style={{ padding: "8px 0 26px" }}>
+          {groups.map((g) => {
+            const isOpen = openGroup === g.title;
+            const holdsActive = g.items.some((i) => i.key === active);
+            // a count on a closed heading, so nothing waiting is hidden by it
+            const waiting = g.items.reduce((n, i) => n + (i.badge || 0), 0);
+
+            return (
+              <div key={g.title}>
+                <button
+                  onClick={() => setOpenGroup(isOpen ? null : g.title)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
+                    padding: "13px 18px", border: "none", cursor: "pointer",
+                    background: isOpen ? "#F4F8F5" : "transparent",
+                    borderLeft: `3px solid ${holdsActive && !isOpen ? "#0E7A3C" : "transparent"}`,
                   }}>
-                    <span style={{ color: on ? "#0E7A3C" : "#8A968E", display: "flex" }}><NavIcon d={ICONS[it.icon] || ICONS.overview} /></span>
-                    <span style={{ flex: 1 }}>{it.label}</span>
-                    {it.badge > 0 && (
-                      <span style={{ background: "#FFC400", color: "#0A2E1A", borderRadius: 10,
-                            padding: "1px 8px", fontFamily: FONT.mono, fontSize: 10, fontWeight: 800 }}>{it.badge}</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+                  <span style={{ flex: 1, fontFamily: FONT.display, fontSize: 13,
+                        fontWeight: 700, letterSpacing: 0.2,
+                        color: isOpen ? "#0A2E1A" : "#4A5A50" }}>
+                    {g.title.charAt(0) + g.title.slice(1).toLowerCase()}
+                  </span>
+                  {waiting > 0 && !isOpen && (
+                    <span style={{ background: "#FFC400", color: "#0A2E1A", borderRadius: 10,
+                          padding: "1px 8px", fontFamily: FONT.mono, fontSize: 10, fontWeight: 800 }}>
+                      {waiting}
+                    </span>
+                  )}
+                  <span style={{ color: "#8A968E", fontSize: 11, transition: "transform .2s ease",
+                        transform: isOpen ? "rotate(90deg)" : "none", display: "inline-block" }}>▶</span>
+                </button>
+
+                {isOpen && g.items.map((it) => {
+                  const on = active === it.key;
+                  return (
+                    <button key={it.key} onClick={() => { onPick(it.key); onClose(); }} style={{
+                      display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left",
+                      padding: "10px 18px 10px 24px", border: "none",
+                      background: on ? "#E3F5E9" : "transparent",
+                      borderLeft: `3px solid ${on ? "#0E7A3C" : "transparent"}`,
+                      color: on ? "#0B5C2D" : "#4A5A50", fontFamily: FONT.body, fontSize: 13.5,
+                      fontWeight: on ? 600 : 400,
+                    }}>
+                      <span style={{ color: on ? "#0E7A3C" : "#8A968E", display: "flex" }}><NavIcon d={ICONS[it.icon] || ICONS.overview} /></span>
+                      <span style={{ flex: 1 }}>{it.label}</span>
+                      {it.badge > 0 && (
+                        <span style={{ background: "#FFC400", color: "#0A2E1A", borderRadius: 10,
+                              padding: "1px 8px", fontFamily: FONT.mono, fontSize: 10, fontWeight: 800 }}>{it.badge}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       </nav>
     </>
