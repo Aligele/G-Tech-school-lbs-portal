@@ -87,7 +87,7 @@ const STATUS = {
   late: { label: "Late", ink: "#8A6A00", mark: "L" },
 };
 
-const APP_VERSION = "v55 · your school crest";
+const APP_VERSION = "v56 · install as an app";
 
 // Keeps the last 400 actions so the school can see who changed what.
 const logAction = (roster, actor, action) => {
@@ -590,7 +590,10 @@ export default function SchoolRegister() {
         setWho(session);
         applySessionSchool(session);
         if (session.schoolCode) {
-          logoGet(session.schoolCode).then(applySchoolLogo).catch(() => {});
+          logoGet(session.schoolCode).then((d) => {
+            applySchoolLogo(d);
+            applyInstallIdentity(session.schoolCode, session.schoolName || SCHOOL_NAME, d);
+          }).catch(() => {});
         }
         setRole(session.role);
         if (session.mustChange) setMustChange(true);
@@ -713,7 +716,10 @@ export default function SchoolRegister() {
           onStaffSignedIn={async (session) => {
             applySessionSchool(session);
             if (session.schoolCode) {
-              logoGet(session.schoolCode).then(applySchoolLogo).catch(() => {});
+              logoGet(session.schoolCode).then((d) => {
+                applySchoolLogo(d);
+                applyInstallIdentity(session.schoolCode, session.schoolName || SCHOOL_NAME, d);
+              }).catch(() => {});
             }
             if (session.mustChange) setMustChange(true);
             setWho(session);
@@ -1203,7 +1209,10 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
           const sc = list.find((x) => x.code === fromUrl);
           applySchoolIdentity({ name: sc.name, location: sc.location });
           // the crest belongs on the door, before anyone has signed in
-          logoGet(fromUrl).then((d) => { applySchoolLogo(d); setLogoTick((n) => n + 1); }).catch(() => {});
+          logoGet(fromUrl).then((d) => {
+            applySchoolLogo(d); setLogoTick((n) => n + 1);
+            applyInstallIdentity(fromUrl, sc.name, d);
+          }).catch(() => applyInstallIdentity(fromUrl, sc.name, ""));
           return;
         }
         setPinned("");                       // a bad code falls back to the list
@@ -1223,7 +1232,10 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
     const sc = (schools || []).find((x) => x.code === school);
     if (!sc) return;
     applySchoolIdentity({ name: sc.name, location: sc.location });
-    logoGet(sc.code).then((d) => { applySchoolLogo(d); setLogoTick((n) => n + 1); }).catch(() => {});
+    logoGet(sc.code).then((d) => {
+      applySchoolLogo(d); setLogoTick((n) => n + 1);
+      applyInstallIdentity(sc.code, sc.name, d);
+    }).catch(() => applyInstallIdentity(sc.code, sc.name, ""));
   }, [school, schools]);
   const [step, setStep] = useState("root");
   const [creds, setCreds] = useState({ username: "", password: "" });
@@ -1342,6 +1354,8 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
 
       {step === "root" && (
         <div style={{ display: "grid", gap: 12 }}>
+          <InstallPrompt />
+
           <RoleCard glyph="S" title="Staff Login" desc="Teachers and administration — sign in with your username." onClick={() => { setStep("staff"); setErr(""); }} />
           <RoleCard glyph="P" title="Student / Parent" desc="Results with class position, attendance and fees." onClick={() => { setStep("parent"); setErr(""); }} />
         </div>
@@ -10160,6 +10174,92 @@ function SchoolLogo({ who }) {
             marginTop: 8, lineHeight: 1.6, maxWidth: 520 }}>
         Staff already signed in will see it the next time they sign in.
       </div>
+    </div>
+  );
+}
+
+
+// ---------- Installing as an app ----------
+// The portal is a progressive web app: staff add it to the home screen and it
+// opens fullscreen, works offline and updates itself. The manifest in the page
+// is written for one school, so a multi-school portal builds a fresh one per
+// school at run time — otherwise every school would install as "Banane
+// Shantral", with Banane's crest, landing on a school picker.
+function applyInstallIdentity(schoolCode, schoolName, logoDataUrl) {
+  try {
+    const start = schoolCode
+      ? `${window.location.pathname}?school=${schoolCode}`
+      : window.location.pathname;
+
+    const icons = logoDataUrl
+      ? [{ src: logoDataUrl, sizes: "512x512", type: "image/png", purpose: "any" },
+         { src: logoDataUrl, sizes: "512x512", type: "image/png", purpose: "maskable" }]
+      : [{ src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+         { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+         { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" }];
+
+    const manifest = {
+      name: `${schoolName} Portal`,
+      short_name: schoolName.length > 18 ? schoolName.slice(0, 18).trim() : schoolName,
+      description: `Exam results, attendance and fees for ${schoolName}.`,
+      start_url: start, scope: window.location.pathname,
+      display: "standalone", orientation: "portrait",
+      background_color: "#FFFFFF", theme_color: "#FFFFFF",
+      lang: "en-KE", icons,
+    };
+
+    const blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
+    const url = URL.createObjectURL(blob);
+    let link = document.querySelector('link[rel="manifest"]');
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "manifest";
+      document.head.appendChild(link);
+    }
+    if (link.dataset.blob) URL.revokeObjectURL(link.dataset.blob);
+    link.href = url;
+    link.dataset.blob = url;
+    document.title = `${schoolName} Portal`;
+  } catch (e) { /* an install prompt is a nicety; never break the page for it */ }
+}
+
+// The prompt itself. Chrome only offers it when the browser judges the moment
+// right, so this waits to be told rather than nagging.
+function InstallPrompt() {
+  const [offer, setOffer] = useState(null);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    const onOffer = (e) => { e.preventDefault(); setOffer(e); };
+    window.addEventListener("beforeinstallprompt", onOffer);
+    window.addEventListener("appinstalled", () => { setOffer(null); setDone(true); });
+    return () => window.removeEventListener("beforeinstallprompt", onOffer);
+  }, []);
+
+  // already opened from the home screen, so there is nothing to offer
+  const standalone = window.matchMedia?.("(display-mode: standalone)")?.matches
+    || window.navigator?.standalone;
+  if (standalone || done || !offer) return null;
+
+  return (
+    <div className="enter no-print" style={{ display: "flex", alignItems: "center", gap: 11,
+          flexWrap: "wrap", padding: "11px 14px", borderRadius: 6, marginBottom: 16,
+          background: "#FFF6D6", border: "1px solid #F0D98A" }}>
+      <span style={{ flex: 1, minWidth: 190, fontFamily: FONT.body, fontSize: 12.5,
+            color: "#0A2E1A", lineHeight: 1.55 }}>
+        <strong>Add {SCHOOL_NAME} to your home screen.</strong> It opens like an app, keeps working
+        without a signal, and saves typing the address every morning.
+      </span>
+      <button onClick={async () => {
+          offer.prompt();
+          try { await offer.userChoice; } catch (e) {}
+          setOffer(null);
+        }} style={{ ...primaryBtn(), fontSize: 12.5, padding: "8px 15px" }}>
+        Add it
+      </button>
+      <button onClick={() => setOffer(null)} style={{ ...backBtnStyle(), fontSize: 11.5 }}>
+        not now
+      </button>
     </div>
   );
 }
