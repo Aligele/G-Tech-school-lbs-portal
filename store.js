@@ -543,3 +543,39 @@ export const schoolByCode = async (code) => {
 // — the ones who cannot easily reach the administrator — could not enable it.
 export const setMyContact = (email, phone) =>
   rpc("staff_set_my_contact", { p_token: getToken(), p_email: email || null, p_phone: phone || null });
+
+// ---------- the school's crest ----------
+// Read by school code, because the sign-in screen needs it before anyone has
+// signed in. A crest is on the gate, not a secret.
+export const logoGet = (schoolCode) => rpc("logo_get", { p_school_code: schoolCode });
+export const logoSet = (dataUrl) => rpc("logo_set", { p_token: getToken(), p_data: dataUrl || null });
+
+// A crest is a small mark on a page, and every parent downloads it on every
+// visit — so it is shrunk hard before it is ever sent.
+export async function shrinkLogo(file, maxEdge = 320) {
+  if (file.type === "image/svg+xml") {
+    // an svg is already small and scales perfectly; send it as it is
+    const text = await file.text();
+    if (text.length > 200000) throw new Error("That drawing is too large. Save it as a PNG instead.");
+    return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(text)));
+  }
+  const dataUrl = await new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = () => rej(new Error("That file could not be read."));
+    r.readAsDataURL(file);
+  });
+  const img = await new Promise((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = () => rej(new Error("That file is not a usable image."));
+    i.src = dataUrl;
+  });
+  const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+  const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  // transparency matters on a crest, so png is kept rather than flattened
+  canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+  return canvas.toDataURL("image/png");
+}
