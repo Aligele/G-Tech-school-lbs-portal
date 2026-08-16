@@ -4,7 +4,7 @@ import {
   loadRoster, saveRoster as persistRoster, isShared, isOffline, hasPendingChanges,
   staffLogin, staffLogout, restoreSession, getWho, changeMyPassword,
   staffList, staffUpsert, staffDeactivate, parentLookup,
-  requestReset, confirmReset, staffSetEmail, staffSetContact, schoolInfo,
+  requestReset, confirmReset, staffSetEmail, staffSetContact, setMyContact, schoolInfo,
   photoSet, photoDelete, photosGet, photosWhich,
   healthCheck, backupsList, backupNow, backupRestore, staffResetPassword,
   geofenceGet, geofenceSet, locationRecent, locationRecord, currentPosition, metresBetween,
@@ -86,7 +86,7 @@ const STATUS = {
   late: { label: "Late", ink: "#8A6A00", mark: "L" },
 };
 
-const APP_VERSION = "v53 · a menu you can see";
+const APP_VERSION = "v54 · reset your own password";
 
 // Keeps the last 400 actions so the school can see who changed what.
 const logAction = (roster, actor, action) => {
@@ -1222,7 +1222,9 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
     try {
       await requestReset(u);
       setReset({ ...reset, username: u, stage: "code" });
-      setNote("If that account has an email on file, a 6-digit code is on its way. It expires in 20 minutes.");
+      setNote("If that account has an email on file, a 6-digit code is on its way. It expires in 20 minutes. "
+        + "If nothing arrives, the account has no email on it — ask the head teacher for a new password, "
+        + "then add your email under My password so this works next time.");
     } catch (e) {
       setErr(String(e.message || e).slice(0, 180));
     }
@@ -1231,7 +1233,8 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
 
   const applyReset = async () => {
     if (!reset.code.trim()) return setErr("Enter the code from the email.");
-    if (reset.pw1.length < 6) return setErr("New password must be at least 6 characters.");
+    const problem = passwordProblem(reset.pw1, reset.username);
+    if (problem) return setErr(problem);
     if (reset.pw1 !== reset.pw2) return setErr("The two passwords do not match.");
     setBusy(true); setErr(""); setNote("");
     try {
@@ -8488,6 +8491,94 @@ function StoragePanel() {
 // Available to every signed-in account. This is the piece that stops a
 // forgotten password meaning the administrator sets one and reads it aloud,
 // after which two people know it and nobody changes it.
+
+// ---------- Making sure you can reset your own password ----------
+// A reset code is sent by email, so an account with no email on file cannot
+// use it — and those are exactly the people who struggle to reach the
+// administrator. This sits above the password form so it is dealt with before
+// it is needed, rather than discovered on the morning it matters.
+function MyContact({ who }) {
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    restoreSession()
+      .then((me) => { setEmail(me?.email || ""); setPhone(me?.phone || ""); setLoaded(true); })
+      .catch(() => setLoaded(true));
+  }, []);
+
+  const save = async () => {
+    setBusy(true); setErr(""); setMsg("");
+    try {
+      await setMyContact(email, phone);
+      setMsg(email.trim()
+        ? "Saved. You can now reset your own password from the sign-in screen."
+        : "Saved.");
+    } catch (e) {
+      setErr(String(e.message || e).replace(/^staff_set_my_contact \d+: /, ""));
+    }
+    setBusy(false);
+  };
+
+  if (!loaded) return <div className="skeleton" style={{ height: 90, marginBottom: 20 }} />;
+
+  const noEmail = !email.trim();
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ fontFamily: FONT.display, fontSize: 15.5, fontWeight: 700,
+            color: "#0A2E1A", marginBottom: 4 }}>How you would be reached</div>
+
+      {noEmail ? (
+        <div style={{ padding: "11px 13px", borderRadius: 5, marginBottom: 12,
+              background: "#FFF6D6", border: "1px solid #F0D98A", borderLeft: "4px solid #FFC400",
+              fontFamily: FONT.body, fontSize: 12.5, color: "#0A2E1A", lineHeight: 1.6 }}>
+          <strong>There is no email on your account.</strong> Add one and you can reset your own
+          password whenever you forget it. Without one, you have to find the administrator.
+        </div>
+      ) : (
+        <div style={{ fontFamily: FONT.body, fontSize: 12.5, color: "#4A5A50",
+              marginBottom: 12, lineHeight: 1.6 }}>
+          A reset code is sent here if you forget your password. Keep it current.
+        </div>
+      )}
+
+      {err && <div className="enter" style={{ padding: "9px 12px", borderRadius: 4, background: "#FDE8E6",
+            border: "1px solid #F3C0BB", fontFamily: FONT.body, fontSize: 12.5,
+            color: "#C0261B", marginBottom: 10 }}>{err}</div>}
+      {msg && <div className="enter" style={{ padding: "9px 12px", borderRadius: 4, background: "#E3F5E9",
+            border: "1px solid #A9DEBC", fontFamily: FONT.body, fontSize: 12.5,
+            color: "#0A2E1A", marginBottom: 10 }}>{msg}</div>}
+
+      <div style={{ display: "grid", gap: 11, maxWidth: 460,
+            gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))" }}>
+        <Field label="Email" hint="Where a reset code is sent">
+          <input type="email" inputMode="email" value={email}
+            onChange={(e) => { setEmail(e.target.value); setErr(""); setMsg(""); }}
+            placeholder="you@example.com"
+            style={{ ...darkInput(), width: "100%",
+                     borderColor: noEmail ? "#F0D98A" : "#C6D2CA" }} />
+        </Field>
+        <Field label="Phone" hint="So the school can reach you">
+          <input inputMode="tel" value={phone}
+            onChange={(e) => { setPhone(e.target.value); setErr(""); setMsg(""); }}
+            placeholder="0722 000000"
+            style={{ ...darkInput(), width: "100%" }} />
+        </Field>
+      </div>
+
+      <button onClick={save} disabled={busy}
+        style={{ ...primaryBtn(), marginTop: 12, opacity: busy ? 0.5 : 1 }}>
+        {busy ? "Saving…" : "Save my details"}
+      </button>
+    </div>
+  );
+}
+
 function ChangeMyPassword({ who, forced = false, onDone }) {
   const [cur, setCur] = useState("");
   const [next, setNext] = useState("");
@@ -8517,6 +8608,8 @@ function ChangeMyPassword({ who, forced = false, onDone }) {
   return (
     <div>
       <SectionTitle>{forced ? "Choose your own password" : "Change my password"}</SectionTitle>
+
+      {!forced && <MyContact who={who} />}
 
       {forced ? (
         <div style={{ padding: "12px 14px", borderRadius: 5, background: "#FFF6D6",

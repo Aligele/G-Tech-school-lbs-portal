@@ -537,3 +537,9 @@ export const schoolByCode = async (code) => {
   const rows = await rpc("schools_list", {});
   return (rows || []).find((s) => s.code === code) || null;
 };
+
+// Anyone signed in may set their own email and phone. Until now only an
+// administrator could, which meant the staff who most need self-service reset
+// — the ones who cannot easily reach the administrator — could not enable it.
+export const setMyContact = (email, phone) =>
+  rpc("staff_set_my_contact", { p_token: getToken(), p_email: email || null, p_phone: phone || null });
