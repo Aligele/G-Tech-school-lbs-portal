@@ -5,6 +5,7 @@ import {
   staffLogin, staffLogout, restoreSession, getWho, changeMyPassword,
   staffList, staffUpsert, staffDeactivate, parentLookup,
   requestReset, confirmReset, staffSetEmail, staffSetContact, setMyContact, schoolInfo,
+  logoGet, logoSet, shrinkLogo,
   photoSet, photoDelete, photosGet, photosWhich,
   healthCheck, backupsList, backupNow, backupRestore, staffResetPassword,
   geofenceGet, geofenceSet, locationRecent, locationRecord, currentPosition, metresBetween,
@@ -86,7 +87,7 @@ const STATUS = {
   late: { label: "Late", ink: "#8A6A00", mark: "L" },
 };
 
-const APP_VERSION = "v54 · reset your own password";
+const APP_VERSION = "v55 · your school crest";
 
 // Keeps the last 400 actions so the school can see who changed what.
 const logAction = (roster, actor, action) => {
@@ -588,6 +589,9 @@ export default function SchoolRegister() {
       if (session) {
         setWho(session);
         applySessionSchool(session);
+        if (session.schoolCode) {
+          logoGet(session.schoolCode).then(applySchoolLogo).catch(() => {});
+        }
         setRole(session.role);
         if (session.mustChange) setMustChange(true);
         if (session.role === "teacher") setActiveTeacherId(session.teacherId);
@@ -708,6 +712,9 @@ export default function SchoolRegister() {
         <RoleGate
           onStaffSignedIn={async (session) => {
             applySessionSchool(session);
+            if (session.schoolCode) {
+              logoGet(session.schoolCode).then(applySchoolLogo).catch(() => {});
+            }
             if (session.mustChange) setMustChange(true);
             setWho(session);
             setRole(session.role);
@@ -991,7 +998,23 @@ function Stamp({ status, size = 30 }) {
   );
 }
 
+// The school's own crest, once one has been uploaded. Held in a module
+// variable rather than passed down: the seal appears on a dozen screens and
+// every printed document, and threading a prop through all of them would be
+// worse than this. It is set once at sign-in and never changes while the
+// portal is open.
+let SCHOOL_LOGO = "";
+const applySchoolLogo = (dataUrl) => { SCHOOL_LOGO = dataUrl || ""; };
+
 function Seal({ size = 56, ink = "#FFC400" }) {
+  // A school that has uploaded its own crest sees that everywhere the drawn
+  // one appeared — on screen and on every printed page.
+  if (SCHOOL_LOGO) {
+    return (
+      <img src={SCHOOL_LOGO} alt="" width={size} height={size}
+        style={{ width: size, height: size, objectFit: "contain", display: "block" }} />
+    );
+  }
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden="true">
       <circle cx="50" cy="50" r="47" fill="none" stroke={ink} strokeWidth="2.5" />
@@ -1167,6 +1190,8 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
   // on the door, no picker, no sight of anyone else. Each head teacher gets
   // their own link rather than a list of everybody's.
   const [pinned, setPinned] = useState(schoolFromUrl());
+  // the crest arrives after the first paint, so a tick redraws the door
+  const [, setLogoTick] = useState(0);
   useEffect(() => {
     listSchools()
       .then((rows) => {
@@ -1177,6 +1202,8 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
           setSchool(fromUrl); setPinned(fromUrl);
           const sc = list.find((x) => x.code === fromUrl);
           applySchoolIdentity({ name: sc.name, location: sc.location });
+          // the crest belongs on the door, before anyone has signed in
+          logoGet(fromUrl).then((d) => { applySchoolLogo(d); setLogoTick((n) => n + 1); }).catch(() => {});
           return;
         }
         setPinned("");                       // a bad code falls back to the list
@@ -1194,7 +1221,9 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
   // Whichever school is chosen, the door shows its name.
   useEffect(() => {
     const sc = (schools || []).find((x) => x.code === school);
-    if (sc) applySchoolIdentity({ name: sc.name, location: sc.location });
+    if (!sc) return;
+    applySchoolIdentity({ name: sc.name, location: sc.location });
+    logoGet(sc.code).then((d) => { applySchoolLogo(d); setLogoTick((n) => n + 1); }).catch(() => {});
   }, [school, schools]);
   const [step, setStep] = useState("root");
   const [creds, setCreds] = useState({ username: "", password: "" });
@@ -1723,6 +1752,7 @@ function AdminView({ roster, saveRoster, onExit, syncState, onForceSave, who }) 
     ]},
     { title: "SYSTEM", items: [
       { key: "health", label: "System health", icon: "approvals" },
+      { key: "logo", label: "The school's crest", icon: "students" },
       { key: "geofence", label: "School boundary", icon: "duty" },
       { key: "security", label: "Security", icon: "logins" },
       ...(who?.isOwner ? [{ key: "schools", label: "Schools", icon: "overview" }] : []),
@@ -2421,6 +2451,8 @@ function AdminView({ roster, saveRoster, onExit, syncState, onForceSave, who }) 
           {tab === "holidaywork" && <AdminHolidayWork roster={roster} />}
 
           {tab === "health" && <SystemHealth roster={roster} />}
+
+          {tab === "logo" && <SchoolLogo who={who} />}
 
           {tab === "geofence" && <GeofenceSettings who={who} />}
 
@@ -10028,6 +10060,106 @@ function AdminRegister({ roster }) {
         ← all classes
       </button>
       <RegisterPicker roster={roster} classId={classId} onPrint={setRegFor} />
+    </div>
+  );
+}
+
+
+// ---------- The school's crest ----------
+function SchoolLogo({ who }) {
+  const [logo, setLogo] = useState(SCHOOL_LOGO || "");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+  const fileRef = useRef(null);
+
+  const pick = async (file) => {
+    if (!file) return;
+    setBusy(true); setErr(""); setMsg("");
+    try {
+      const small = await shrinkLogo(file);
+      await logoSet(small);
+      applySchoolLogo(small);
+      setLogo(small);
+      setMsg("Saved. It now appears on every screen and every printed page.");
+    } catch (e) {
+      setErr(String(e.message || e).replace(/^logo_set \d+: /, ""));
+    }
+    setBusy(false);
+  };
+
+  const remove = async () => {
+    if (!window.confirm("Remove the school's crest and go back to the default?")) return;
+    setBusy(true); setErr(""); setMsg("");
+    try {
+      await logoSet(null);
+      applySchoolLogo("");
+      setLogo("");
+      setMsg("Removed.");
+    } catch (e) { setErr(String(e.message || e)); }
+    setBusy(false);
+  };
+
+  return (
+    <div>
+      <SectionTitle>The school's crest</SectionTitle>
+      <div style={{ fontFamily: FONT.body, fontSize: 12.5, color: "#4A5A50",
+            marginBottom: 16, lineHeight: 1.6 }}>
+        Upload your school's own badge. It replaces the default mark everywhere &#8212; the sign-in
+        screen, the menu, report cards, receipts, ID cards and every printed document.
+      </div>
+
+      {err && <div className="enter" style={{ padding: "9px 12px", borderRadius: 4, background: "#FDE8E6",
+            border: "1px solid #F3C0BB", fontFamily: FONT.body, fontSize: 12.5,
+            color: "#C0261B", marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
+      {msg && <div className="enter" style={{ padding: "9px 12px", borderRadius: 4, background: "#E3F5E9",
+            border: "1px solid #A9DEBC", fontFamily: FONT.body, fontSize: 12.5,
+            color: "#0A2E1A", marginBottom: 12 }}>{msg}</div>}
+
+      {/* shown as it will actually appear, at the sizes it is actually used */}
+      <div style={{ display: "flex", gap: 22, alignItems: "flex-end", flexWrap: "wrap",
+            padding: "18px 20px", background: "#FFFFFF", border: "1px solid #DCE6E0",
+            borderRadius: 8, marginBottom: 16 }}>
+        {[["On the sign-in screen", 64], ["In the menu", 34], ["On a report card", 26]].map(([label, size]) => (
+          <div key={label} style={{ textAlign: "center" }}>
+            <div style={{ height: 66, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {logo
+                ? <img src={logo} alt="" style={{ width: size, height: size, objectFit: "contain" }} />
+                : <Seal size={size} ink="#0E7A3C" />}
+            </div>
+            <div style={{ fontFamily: FONT.mono, fontSize: 9, color: "#5E6E64", marginTop: 4 }}>
+              {label}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        style={{ display: "none" }}
+        onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <button onClick={() => fileRef.current?.click()} disabled={busy}
+          style={{ ...primaryBtn(), opacity: busy ? 0.5 : 1 }}>
+          {busy ? "Uploading…" : logo ? "Choose a different one" : "Upload the school's crest"}
+        </button>
+        {logo && (
+          <button onClick={remove} disabled={busy} style={{ ...backBtnStyle(), color: "#C0261B" }}>
+            remove it
+          </button>
+        )}
+      </div>
+
+      <div style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#4A5A50",
+            marginTop: 12, lineHeight: 1.6, maxWidth: 520 }}>
+        A PNG with a transparent background looks best, because the crest sits on white in the
+        portal and on white paper when printed. It is shrunk to 320px before being stored &#8212;
+        a crest is a small mark, and every parent downloads it on every visit.
+      </div>
+      <div style={{ fontFamily: FONT.body, fontSize: 11.5, color: "#4A5A50",
+            marginTop: 8, lineHeight: 1.6, maxWidth: 520 }}>
+        Staff already signed in will see it the next time they sign in.
+      </div>
     </div>
   );
 }
