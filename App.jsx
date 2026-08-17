@@ -87,7 +87,7 @@ const STATUS = {
   late: { label: "Late", ink: "#8A6A00", mark: "L" },
 };
 
-const APP_VERSION = "v56 · install as an app";
+const APP_VERSION = "v57 · offline saves retry themselves";
 
 // Keeps the last 400 actions so the school can see who changed what.
 const logAction = (roster, actor, action) => {

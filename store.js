@@ -33,6 +33,46 @@ const del       = (k) => { try { localStorage.removeItem(k); } catch (e) {} };
 
 export const hasPendingChanges = () => { try { return localStorage.getItem(PENDING_KEY) === "1"; } catch (e) { return false; } };
 const setPending = (v) => { try { v ? localStorage.setItem(PENDING_KEY, "1") : del(PENDING_KEY); } catch (e) {} };
+export const hasPendingSave = () => { try { return localStorage.getItem(PENDING_KEY) === "1"; } catch (e) { return false; } };
+
+// Retrying automatically when the signal returns.
+//
+// Work is never lost — saveRoster writes the device copy before it ever tries
+// the network. What was missing is this: without it, a mark entered offline
+// sat on the phone until someone happened to open the app again and press
+// Save a second time. A teacher who entered a whole class's marks with no
+// signal and then went home has no reason to reopen the portal that evening.
+//
+// The browser's own "online" event fires the moment the phone reconnects —
+// no polling, no cost while offline.
+let retrying = false;
+let onSynced = null;
+export const onSyncStateChange = (cb) => { onSynced = cb; };
+
+async function retryPendingSave() {
+  if (retrying || !hasPendingSave() || !isShared) return;
+  retrying = true;
+  try {
+    const local = readJSON(MIRROR_KEY);
+    if (local) {
+      await saveRoster(local);
+      onSynced?.("synced");
+    }
+  } catch (e) {
+    // still cannot reach the database — stay pending, try again next time
+    // the browser tells us we are back online
+  } finally {
+    retrying = false;
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("online", retryPendingSave);
+  // a phone can regain a weak signal without firing "online" reliably, so a
+  // slow background check catches what the event misses — cheap, because it
+  // does nothing at all unless there is genuinely a save waiting
+  setInterval(() => { if (hasPendingSave()) retryPendingSave(); }, 45000);
+}
 export const isOffline = () => typeof navigator !== "undefined" && navigator.onLine === false;
 
 export const getToken = () => { try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; } };
