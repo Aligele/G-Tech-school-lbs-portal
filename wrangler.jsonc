@@ -1,5 +1,6 @@
 {
   "name": "g-tech-school-lbs-portal",
   "compatibility_date": "2026-08-01",
-  "pages_build_output_dir": "dist"
+  "pages_build_output_dir": "dist",
+  "pages_build_command": "npm run build"
 }
