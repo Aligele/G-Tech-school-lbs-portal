@@ -555,8 +555,18 @@ export function schoolUrl(code) {
   try {
     const host = window.location.hostname.toLowerCase();
     const proto = window.location.protocol;
+    const RESERVED = ["www", "app", "portal", "admin", "api", "staging", "preview", "test"];
+    const firstLabel = host.split(".")[0];
+
+    // A wildcard-per-school setup was never actually configured in DNS —
+    // Cloudflare's free plan does not add one automatically, and only a
+    // handful of subdomains have ever been added by hand. So on the app's
+    // own reserved address (portal.cxm.co.ke) — as well as Vercel/localhost
+    // — generate a link that needs zero extra DNS: one address, the school
+    // named as a query. This is what stops "portal" itself from being
+    // mistaken for a school and turned into banane.cxm.co.ke.
     if (host.endsWith("vercel.app") || host === "localhost" ||
-        /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+        /^\d+\.\d+\.\d+\.\d+$/.test(host) || RESERVED.includes(firstLabel)) {
       return `${window.location.origin}${window.location.pathname}?school=${code}`;
     }
     // strip any existing school subdomain before adding this one
