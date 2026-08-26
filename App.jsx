@@ -470,14 +470,23 @@ const kcseBand = (score) => {
   return KCSE_BANDS.find((b) => score >= b.min) || KCSE_BANDS[KCSE_BANDS.length - 1];
 };
 
-// Which scheme a class is marked under. Grade 10 and above is senior school.
+// Which scheme a class is marked under.
+//
+// A class explicitly named "Form" (Form 1, Form 2...) is always KCSE-graded,
+// whatever number follows — that name is the old system's own word for
+// itself, so it settles the question outright. Everything else is CBE
+// (levels 1-4: EE/ME/AE/BE), except Grade 10 and above, which Kenya's
+// senior secondary still reports the KCSE way even under CBE's own class
+// numbering.
 const gradeNumberOf = (className) => {
   const m = String(className || "").match(/(\d+)/);
   return m ? Number(m[1]) : null;
 };
 const isSeniorClass = (roster, classId) => {
   const c = roster?.classes?.find((x) => x.id === classId);
-  const n = gradeNumberOf(c?.name);
+  const name = String(c?.name || "");
+  if (/\bform\b/i.test(name)) return true;
+  const n = gradeNumberOf(name);
   return n !== null && n >= 10;
 };
 
