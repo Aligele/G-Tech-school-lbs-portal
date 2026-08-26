@@ -1336,7 +1336,6 @@ function RoleGate({ onStaffSignedIn, onParentSignedIn }) {
           width: 84, height: 84, margin: "0 auto", borderRadius: "50%",
           display: "flex", alignItems: "center", justifyContent: "center",
           background: "#FFFFFF", border: "1px solid #DCE6E0",
-          border: "1px solid #E1E7E3",
           boxShadow: "0 0 0 6px rgba(232,178,61,0.07), 0 10px 26px rgba(0,0,0,0.35)",
         }}>
           <Seal size={52} />
@@ -2003,7 +2002,7 @@ function AdminView({ roster, saveRoster, onExit, syncState, onForceSave, who }) 
               </div>
               <div style={{ background: "#F4F8F5", border: "1px solid #DCE6E0", borderRadius: 5,
                     padding: 13, marginBottom: 16 }}>
-                <div style={{ fontFamily: FONT.mono, fontSize: 9, letterSpacing: 1.2, color: "#5E6E64",
+                <div style={{ fontFamily: FONT.mono, fontSize: 9, letterSpacing: 1.2,
                       textTransform: "uppercase", marginBottom: 6, color: "#4A5A50" }}>The teacher</div>
                 <div style={{ display: "grid", gap: 8, marginBottom: 8,
                       gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))" }}>
@@ -3382,7 +3381,7 @@ function TeacherView({ roster, saveRoster, teacherId, onExit, who }) {
                    reportcards: "Report cards", timetable: "My timetable",
                    register: "Register a pupil", photos: "Pupil photos", examtt: "Exam timetable",
                    holiday: "Holiday work", mypassword: "My password", scan: "Scan a card",
-                   printreg: "Print the register", scan: "Scan a card",
+                   printreg: "Print the register",
                    discipline: "Discipline report" }[tab] || tab}
         onMenu={() => setMenuOpen(true)} onExit={onExit} />
       <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} active={tab} onPick={setTab}
