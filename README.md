@@ -1,7 +1,6 @@
 cxm.co.ke — Portal
 
-Attendance, exam results and fees portal for **Biyamathow Mixed Day and Boarding
-Senior School**, Sabuli, Wajir County.
+Attendance, exam results and fees cxm.portal, Sabuli, Wajir County.
 
 Roles: **Admin** (classes, teachers, students, fees, reports, backup),
 **Teacher** (attendance + results for their assigned subjects),
