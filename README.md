@@ -1,4 +1,4 @@
-# Biyamathow Senior School — Portal
+cxm.co.ke — Portal
 
 Attendance, exam results and fees portal for **Biyamathow Mixed Day and Boarding
 Senior School**, Sabuli, Wajir County.
