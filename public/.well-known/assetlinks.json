@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "ke.co.cxm.portal.twa",
+        "sha256_cert_fingerprints": ["56:B4:29:06:1A:B8:4F:0C:C3:0F:31:EC:B6:31:B0:3C:3B:90:56:F5:AE:7C:D0:DB:E0:17:38:53:EA:B9:59:92"]
+      }
+    }]
