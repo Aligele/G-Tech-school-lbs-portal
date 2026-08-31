@@ -3,19 +3,23 @@
 // changes on the device and sends them the moment a connection returns —
 // this only handles the app itself opening without one.
 //
-// Network-first, cache-as-you-go: every page and asset that loads while
-// online is quietly kept as a fallback. Nothing is pre-listed by filename,
-// so a new build's hashed files are picked up automatically the next time
-// the app is opened with a signal — no separate step needed here when the
-// app itself changes.
+// Two things happen here:
+//   1. Every page and asset loaded while online is quietly kept as a
+//      fallback, so the app shell itself opens with no signal.
+//   2. If a page navigation genuinely fails offline, a proper offline
+//      page is shown instead of the browser's own broken-connection screen.
 //
 // Deliberately NOT cached: anything talking to Supabase or this project's
 // own /api/ functions. Real pupil data and a password reset must always be
 // asked for fresh, never served stale from a cache.
 
-const CACHE = "portal-shell-v1";
+const CACHE = "portal-shell-v2";
+const OFFLINE_PAGE = "/offline.html";
 
 self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE).then((cache) => cache.add(OFFLINE_PAGE))
+  );
   self.skipWaiting();
 });
 
@@ -36,6 +40,16 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;          // never cache Supabase
   if (url.pathname.startsWith("/api/")) return;              // never cache the reset function
 
+  // A full page load (someone opening or reloading the app) falls back to
+  // the offline page specifically if the network genuinely fails — this is
+  // the pattern installability checks look for.
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request).catch(() => caches.match(OFFLINE_PAGE))
+    );
+    return;
+  }
+
   event.respondWith(
     fetch(request)
       .then((response) => {
@@ -43,8 +57,6 @@ self.addEventListener("fetch", (event) => {
         caches.open(CACHE).then((cache) => cache.put(request, copy));
         return response;
       })
-      .catch(() =>
-        caches.match(request).then((cached) => cached || caches.match("/"))
-      )
+      .catch(() => caches.match(request))
   );
 });
