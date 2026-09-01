@@ -32,9 +32,10 @@ export async function onRequest(context) {
       if (logoRes.ok) {
         const logo = await logoRes.json();
         if (typeof logo === "string" && logo.startsWith("data:image")) {
+          const crestUrl = `/crest/${code}`;
           icons = [
-            { src: logo, sizes: "192x192", type: "image/png", purpose: "any maskable" },
-            { src: logo, sizes: "512x512", type: "image/png", purpose: "any maskable" },
+            { src: crestUrl, sizes: "192x192", type: "image/png", purpose: "any maskable" },
+            { src: crestUrl, sizes: "512x512", type: "image/png", purpose: "any maskable" },
           ];
         }
       }
