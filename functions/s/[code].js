@@ -21,9 +21,7 @@ export async function onRequest(context) {
       if (!match) return Response.redirect(new URL("/", context.request.url), 302);
       name = match.name || name;
     }
-  } catch (e) {
-    // if the lookup fails, still let the visitor through to the app itself
-  }
+  } catch (e) {}
 
   const safe = name.replace(/</g, "&lt;");
   const html = `<!DOCTYPE html>
@@ -36,11 +34,17 @@ export async function onRequest(context) {
 <link rel="manifest" href="/manifest/${code}">
 <link rel="icon" href="/icon-192.png">
 <link rel="apple-touch-icon" href="/icon-192.png">
-<meta http-equiv="refresh" content="0; url=/?school=${code}">
-<script>window.location.replace("/?school=${code}");</script>
+<style>
+  body{margin:0;font-family:Georgia,serif;background:#FBF7EC;color:#0A2E1A;
+       display:flex;flex-direction:column;align-items:center;justify-content:center;
+       height:100vh;text-align:center;padding:40px;}
+  a{margin-top:24px;background:#0E7A3C;color:#FBF7EC;padding:14px 30px;
+    border-radius:8px;text-decoration:none;font-size:17px;}
+</style>
 </head>
 <body>
-  <p>Opening ${safe}… <a href="/?school=${code}">Tap here if it does not open automatically.</a></p>
+  <h1>${safe}</h1>
+  <a href="/?school=${code}">Open the portal</a>
 </body>
 </html>`;
 
