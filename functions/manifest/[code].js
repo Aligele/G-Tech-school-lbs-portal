@@ -7,10 +7,8 @@ export async function onRequest(context) {
 
   let name = "School Portal";
   let icons = [
-    { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-    { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-    { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "maskable" },
-    { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+    { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any maskable" },
+    { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
   ];
 
   if (SUPA && ANON && code) {
@@ -35,10 +33,8 @@ export async function onRequest(context) {
         const logo = await logoRes.json();
         if (typeof logo === "string" && logo.startsWith("data:image")) {
           icons = [
-            { src: logo, sizes: "192x192", type: "image/png", purpose: "any" },
-            { src: logo, sizes: "512x512", type: "image/png", purpose: "any" },
-            { src: logo, sizes: "192x192", type: "image/png", purpose: "maskable" },
-            { src: logo, sizes: "512x512", type: "image/png", purpose: "maskable" },
+            { src: logo, sizes: "192x192", type: "image/png", purpose: "any maskable" },
+            { src: logo, sizes: "512x512", type: "image/png", purpose: "any maskable" },
           ];
         }
       }
