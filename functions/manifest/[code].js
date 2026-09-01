@@ -46,6 +46,7 @@ export async function onRequest(context) {
   }
 
   const manifest = {
+    id: `/?school=${code}`,
     name,
     short_name: name.length > 20 ? name.split(" ")[0] : name,
     description: `The school portal for ${name} — pupils, marks, fees and attendance, one login away.`,
