@@ -583,6 +583,9 @@ export const unitsManageList = () => rpc("units_manage_list", { p_token: getToke
 export const unitGrade = (registrationId, grade, points) =>
   rpc("unit_grade", { p_token: getToken(), p_registration_id: registrationId, p_grade: grade, p_points: points });
 export const unitRoster = (unitId) => rpc("unit_roster", { p_token: getToken(), p_unit_id: unitId });
+export const studentRegistrations = (username) => rpc("student_registrations", { p_token: getToken(), p_username: username });
+export const collegeTimetableGet = (semester) => rpc("college_timetable_get", { p_token: getToken(), p_semester: semester });
+export const collegeTimetableSet = (semester, data) => rpc("college_timetable_set", { p_token: getToken(), p_semester: semester, p_data: data });
 
 
 // ---------- one link per school ----------
